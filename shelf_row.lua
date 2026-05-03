@@ -1,5 +1,5 @@
 -- shelf_row.lua
--- A single shelf: 5 horizontally-arranged spine slots + dotted base rule.
+-- A single shelf: 4 horizontally-arranged spine slots + dotted base rule.
 -- Each slot can be a SpineWidget (single book) or a SeriesStack (series group).
 -- Empty slots render as blank spacers so the row always has a fixed width.
 --
@@ -44,7 +44,7 @@ end
 -- opts: {
 --   width         number   total row width in pixels
 --   height        number   slot height in pixels
---   items         table    list of up to 5 Book or SeriesGroup records (nil = empty slot)
+--   items         table    list of up to 4 Book or SeriesGroup records (nil = empty slot)
 --   gap           number   (optional) pixel gap between slots (default Size.padding.default)
 --   on_book_tap   function (book) callback
 --   on_book_hold  function (book) callback
@@ -52,8 +52,10 @@ end
 --   on_series_hold function (series) callback
 -- }
 function ShelfRow.new(opts)
-    local n_slots = 5
-    local gap     = opts.gap or Size.padding.large
+    local n_slots = 4
+    -- Generous gap between covers so the shelf doesn't read as cramped.
+    -- Size.padding.fullscreen ≈ 15dp.
+    local gap     = opts.gap or Size.padding.fullscreen
     local slot_w  = math.floor((opts.width - gap * (n_slots - 1)) / n_slots)
     -- Force a 2:3 aspect ratio (book-cover standard) so all spines look uniform.
     -- The shelf row's overall height is ignored except for the dotted base; the

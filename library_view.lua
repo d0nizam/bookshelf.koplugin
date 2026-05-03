@@ -30,9 +30,9 @@ local Repo            = require("book_repository")
 
 -- ─── Layout constants ─────────────────────────────────────────────────────────
 
-local PER_ROW  = 5
+local PER_ROW  = 4
 local ROWS     = 3
-local PER_PAGE = PER_ROW * ROWS  -- 15
+local PER_PAGE = PER_ROW * ROWS  -- 12
 
 -- Height of one chip-strip row.
 -- Size.item.height_small does not exist in KOReader; use height_default (~30dp)

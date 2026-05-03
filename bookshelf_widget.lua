@@ -161,9 +161,9 @@ function BookshelfWidget:_rebuild()
     }
 
     -- ── Shelf items ───────────────────────────────────────────────────────────
-    local items     = self:_fetchChipItems(10)
+    local items     = self:_fetchChipItems(8)
     local total     = self:_chipTotal()
-    local shown     = math.min(10, #items)
+    local shown     = math.min(8, #items)
 
     -- ── Empty-state placeholder (spec §8: "Selected chip yields zero books") ────
     -- When the active chip returns no items, replace both shelf rows with a
@@ -208,6 +208,10 @@ function BookshelfWidget:_rebuild()
             bordersize = 0,
             padding    = PAD,
             background = paper_bg,
+            -- Force the page background to fill the whole screen so the
+            -- underlying FileManager doesn't bleed through below the content.
+            width      = self.width,
+            height     = self.height,
             VerticalGroup:new{
                 align = "left",
                 titlebar,
@@ -233,12 +237,12 @@ function BookshelfWidget:_rebuild()
         -- walk), so omit the "of N" portion.
         label_text = string.format(
             "%s  \xc2\xb7  1\xe2\x80\x93%d  \xe2\x80\xba",
-            self:_chipLabel(), math.min(10, shown)
+            self:_chipLabel(), math.min(8, shown)
         )
     else
         label_text = string.format(
             "%s  \xc2\xb7  1\xe2\x80\x93%d of %d  \xe2\x80\xba",
-            self:_chipLabel(), math.min(10, shown), total
+            self:_chipLabel(), math.min(8, shown), total
         )
     end
 
@@ -288,8 +292,8 @@ function BookshelfWidget:_rebuild()
 
     -- ── Shelf rows ────────────────────────────────────────────────────────────
     local items_top, items_bottom = {}, {}
-    for i = 1, 5 do items_top[i]    = items[i]      end
-    for i = 1, 5 do items_bottom[i] = items[i + 5]  end
+    for i = 1, 4 do items_top[i]    = items[i]      end
+    for i = 1, 4 do items_bottom[i] = items[i + 4]  end
 
     local row_top = ShelfRow.new{
         width          = content_w,
@@ -321,6 +325,10 @@ function BookshelfWidget:_rebuild()
         bordersize = 0,
         padding    = PAD,
         background = paper_bg,
+        -- Force the page background to fill the whole screen so the
+        -- underlying FileManager doesn't bleed through below the content.
+        width      = self.width,
+        height     = self.height,
         VerticalGroup:new{
             align = "left",
             titlebar,
