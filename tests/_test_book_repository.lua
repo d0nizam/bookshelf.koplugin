@@ -87,7 +87,7 @@ test("getCurrent: returns a book when lastfile is set", function()
 end)
 
 -- ============================================================================
--- Task 2.2: getRecent
+-- Task 2.2: getRecent (already committed)
 -- ============================================================================
 
 test("getRecent: orders by ReadHistory.hist time desc, caps at limit", function()
@@ -105,6 +105,39 @@ test("getRecent: orders by ReadHistory.hist time desc, caps at limit", function(
     assert(#recent == 2, "got " .. #recent)
     assert(recent[1].title == "A")
     assert(recent[2].title == "B")
+end)
+
+-- ============================================================================
+-- Task 2.3: getLatest
+-- ============================================================================
+
+test("getLatest: orders by mtime desc, respects limit and depth", function()
+    -- Stub a tiny directory walk via the lfs mock above.
+    package.loaded["lfs"].dir = function(path)
+        local files
+        if path == "/home" then files = { ".", "..", "old.epub", "new.epub", "sub" }
+        elseif path == "/home/sub" then files = { ".", "..", "deep.epub" }
+        else files = {} end
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["lfs"].attributes = function(fp, key)
+        local times = { ["/home/old.epub"] = 100, ["/home/new.epub"] = 500, ["/home/sub/deep.epub"] = 300 }
+        local modes = { ["/home/sub"] = "directory" }
+        if key == "modification" then return times[fp] or 0
+        elseif key == "mode" then return modes[fp] or "file" end
+    end
+    _G._test_settings = { home_dir = "/home", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = {
+        ["/home/old.epub"]      = { title = "Old" },
+        ["/home/new.epub"]      = { title = "New" },
+        ["/home/sub/deep.epub"] = { title = "Deep" },
+    }
+    local latest = Repo.getLatest(3)
+    assert(#latest == 3, "got " .. #latest)
+    assert(latest[1].title == "New")
+    assert(latest[2].title == "Deep")
+    assert(latest[3].title == "Old")
 end)
 
 -- ============================================================================

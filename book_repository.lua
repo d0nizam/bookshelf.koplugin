@@ -96,4 +96,54 @@ function Repo.getRecent(limit)
     return out
 end
 
+-- ─── getLatest ───────────────────────────────────────────────────────────────
+-- Returns up to `limit` Book records, sorted newest-by-mtime first, from a
+-- recursive filesystem walk rooted at G_reader_settings `home_dir`.
+-- Walk depth is capped by `bookshelf_latest_walk_depth` setting (default 3).
+-- Results are NOT memoised here — caching is a BookshelfWidget-level concern.
+
+-- Supported e-book extensions for the filesystem walk.
+local SUPPORTED_EXT = {
+    epub=true, pdf=true, mobi=true, azw3=true, fb2=true,
+    cbz=true, cbr=true, txt=true, md=true, html=true, htm=true, djvu=true,
+}
+
+local function walkBooks(root, depth, out, current_depth)
+    current_depth = current_depth or 0
+    if current_depth > depth then return end
+    local lfs = require("lfs")
+    if not lfs.dir then return end
+    for entry in lfs.dir(root) do
+        if entry ~= "." and entry ~= ".." then
+            local fp   = root .. "/" .. entry
+            local mode = lfs.attributes(fp, "mode")
+            if mode == "directory" then
+                walkBooks(fp, depth, out, current_depth + 1)
+            elseif mode == "file" then
+                local ext = entry:match("%.([^.]+)$")
+                if ext and SUPPORTED_EXT[ext:lower()] then
+                    out[#out + 1] = { fp = fp, mtime = lfs.attributes(fp, "modification") or 0 }
+                end
+            end
+        end
+    end
+end
+
+function Repo.getLatest(limit)
+    local home       = G_reader_settings:readSetting("home_dir") or "/"
+    local depth      = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
+    local candidates = {}
+    walkBooks(home, depth, candidates)
+    table.sort(candidates, function(a, b) return a.mtime > b.mtime end)
+    local out = {}
+    for i = 1, math.min(limit or 8, #candidates) do
+        local book = Repo.buildBook(candidates[i].fp)
+        if book then
+            book.added_time = candidates[i].mtime
+            out[#out + 1] = book
+        end
+    end
+    return out
+end
+
 return Repo
