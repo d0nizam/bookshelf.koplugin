@@ -87,5 +87,26 @@ test("getCurrent: returns a book when lastfile is set", function()
 end)
 
 -- ============================================================================
+-- Task 2.2: getRecent
+-- ============================================================================
+
+test("getRecent: orders by ReadHistory.hist time desc, caps at limit", function()
+    package.loaded["readhistory"].hist = {
+        { file = "/a.epub", time = 300 },
+        { file = "/b.epub", time = 200 },
+        { file = "/c.epub", time = 100 },
+    }
+    _G._test_bim_data = {
+        ["/a.epub"] = { title = "A" },
+        ["/b.epub"] = { title = "B" },
+        ["/c.epub"] = { title = "C" },
+    }
+    local recent = Repo.getRecent(2)
+    assert(#recent == 2, "got " .. #recent)
+    assert(recent[1].title == "A")
+    assert(recent[2].title == "B")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

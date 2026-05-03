@@ -78,4 +78,22 @@ function Repo.getCurrent()
     return Repo.buildBook(lastfile)
 end
 
+-- ─── getRecent ───────────────────────────────────────────────────────────────
+-- Returns up to `limit` Book records from ReadHistory.hist, in order
+-- (ReadHistory keeps hist sorted newest-first already).
+
+function Repo.getRecent(limit)
+    local rh  = getReadHistory()
+    local out = {}
+    for i = 1, math.min(limit or 8, #rh.hist) do
+        local entry = rh.hist[i]
+        local book  = Repo.buildBook(entry.file)
+        if book then
+            book.last_read_time = entry.time
+            out[#out + 1] = book
+        end
+    end
+    return out
+end
+
 return Repo
