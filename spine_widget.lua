@@ -127,27 +127,46 @@ function SpineWidget:_renderCover()
         tostring(self.cover_fill)
     ))
 
-    local img_args = {
-        image  = self.book.cover_bb,
-        width  = card_w,
-        height = card_h,
-    }
-    if self.cover_fill then
-        -- Stretch (CSS object-fit: fill). Default for shelf spines.
+    -- RenderImage:scaleBlitBuffer corrupts upscaled output on Kindle —
+    -- confirmed via diagnostic logs: same bb (284×450) renders cleanly when
+    -- DOWN-scaled to 233×353 (shelf), but corrupts when UP-scaled to ~316×499
+    -- (hero). Never upscale. Three branches:
+    --   1. bb <= card → render at native size, center via CenterContainer
+    --      (no scaling, no overflow because bb fits inside the slot).
+    --   2. cover_fill (shelf) → stretch (always a downscale, since cached
+    --      bb is typically larger than shelf slots).
+    --   3. otherwise → scale_factor = 0 (fit, downscale only).
+    local bb_w  = bb and bb.getWidth  and bb:getWidth()
+    local bb_h  = bb and bb.getHeight and bb:getHeight()
+    local would_upscale = bb_w and bb_h and (bb_w < card_w or bb_h < card_h)
+
+    local cover_inner
+    if would_upscale then
+        -- Render at native bb size, center inside the card. CenterContainer
+        -- absorbs the (positive) size mismatch — no overflow because the bb
+        -- is smaller than the card on at least one axis.
+        cover_inner = CenterContainer:new{
+            dimen = Geom:new{ w = card_w, h = card_h },
+            ImageWidget:new{
+                image        = self.book.cover_bb,
+                scale_factor = 1,
+            },
+        }
     else
-        -- Aspect-preserving fit (CSS object-fit: contain). The hero uses
-        -- this — it scales the bb DOWN to fit when the cached cover_bb is
-        -- larger than the slot (typical: BookInfoManager caches at ~400×640,
-        -- hero slot is ~330×500). Letterboxing on aspect mismatch is fine;
-        -- overflowing the slot (which would happen with no scaling) corrupts
-        -- the framebuffer above the hero.
-        img_args.scale_factor = 0
+        local img_args = { image = self.book.cover_bb, width = card_w, height = card_h }
+        if not self.cover_fill then
+            img_args.scale_factor = 0   -- aspect-preserving downscale
+        end
+        cover_inner = ImageWidget:new(img_args)
     end
+
     local cover = FrameContainer:new{
         bordersize = CARD_BORDER,
         radius     = CARD_RADIUS,
         padding    = 0,
-        ImageWidget:new(img_args),
+        width      = card_w,
+        height     = card_h,
+        cover_inner,
     }
     return (self:_renderShadowedCard(cover))
 end
