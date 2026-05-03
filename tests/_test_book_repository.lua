@@ -211,5 +211,90 @@ test("enrichStats: pulls minutes from ReaderStatistics public API", function()
 end)
 
 -- ============================================================================
+-- Task 2.6: author splitting, pcall guards, deduplication
+-- ============================================================================
+
+test("buildBook: splits comma-separated authors and trims whitespace", function()
+    _G._test_bim_data = {
+        ["/book.epub"] = { authors = "Frank Herbert,  Isaac Asimov , Arthur C. Clarke" },
+    }
+    local book = Repo.buildBook("/book.epub")
+    assert(book.authors, "authors should be a table")
+    assert(#book.authors == 3, "expected 3 authors, got " .. #book.authors)
+    assert(book.authors[1] == "Frank Herbert", "got " .. tostring(book.authors[1]))
+    assert(book.authors[2] == "Isaac Asimov", "got " .. tostring(book.authors[2]))
+    assert(book.authors[3] == "Arthur C. Clarke", "got " .. tostring(book.authors[3]))
+    assert(book.author == "Frank Herbert", "singular author should be trimmed first")
+end)
+
+test("buildBook: single-author string yields one-element array, no trailing whitespace", function()
+    _G._test_bim_data = { ["/x.epub"] = { authors = "Sole Author" } }
+    local book = Repo.buildBook("/x.epub")
+    assert(#book.authors == 1)
+    assert(book.authors[1] == "Sole Author")
+    assert(book.author == "Sole Author")
+end)
+
+test("buildBook: nil authors → nil array (not crash)", function()
+    _G._test_bim_data = { ["/x.epub"] = {} }
+    local book = Repo.buildBook("/x.epub")
+    assert(book.authors == nil)
+    assert(book.author == nil)
+end)
+
+test("getLatest: unreadable directory does not crash the walk", function()
+    -- Stub lfs.dir so it raises on '/home/badperms' but works on '/home'.
+    package.loaded["lfs"].dir = function(path)
+        if path == "/home/badperms" then
+            error("permission denied: " .. path)
+        end
+        local files
+        if path == "/home" then files = { ".", "..", "ok.epub", "badperms" }
+        else files = {} end
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["lfs"].attributes = function(fp, key)
+        local times = { ["/home/ok.epub"] = 100 }
+        local modes = { ["/home/badperms"] = "directory" }
+        if key == "modification" then return times[fp] or 0
+        elseif key == "mode" then return modes[fp] or "file" end
+    end
+    _G._test_settings = { home_dir = "/home", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = { ["/home/ok.epub"] = { title = "OK" } }
+
+    local ok, latest = pcall(Repo.getLatest, 5)
+    assert(ok, "getLatest crashed on unreadable dir: " .. tostring(latest))
+    assert(#latest == 1)
+    assert(latest[1].title == "OK")
+end)
+
+test("enrichStats: throwing getBookStat does not propagate", function()
+    package.loaded["readerstatistics"] = {
+        getBookStat = function(_self, _fp) error("simulated SQLite failure") end
+    }
+    local b = { filepath = "/x.epub" }
+    local ok = pcall(Repo.enrichStats, b)
+    assert(ok, "enrichStats let an error propagate")
+    assert(b.book_time_left_minutes == nil, "no fields should be set after a failed call")
+end)
+
+test("getSeriesGroups: dedupes books across multiple history entries for the same filepath", function()
+    package.loaded["readhistory"].hist = {
+        { file = "/foundation1.epub", time = 500 },
+        { file = "/foundation1.epub", time = 400 },  -- same book, opened earlier
+        { file = "/foundation2.epub", time = 300 },
+    }
+    _G._test_bim_data = {
+        ["/foundation1.epub"] = { title = "Foundation",            series = "Foundation #1" },
+        ["/foundation2.epub"] = { title = "Foundation and Empire", series = "Foundation #2" },
+    }
+    local groups = Repo.getSeriesGroups(10)
+    assert(#groups == 1, "expected 1 group, got " .. #groups)
+    assert(#groups[1].books == 2, "expected 2 unique books in Foundation, got " .. #groups[1].books)
+    assert(groups[1]._seen == nil, "_seen helper should be removed from public shape")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

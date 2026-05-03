@@ -9,6 +9,18 @@
 
 local Repo = {}
 
+-- ─── Module-local helpers ────────────────────────────────────────────────────
+
+-- Split a comma-separated author string into a trimmed array, or return nil.
+local function splitAuthors(s)
+    if not s or s == "" then return nil end
+    local t = {}
+    for part in s:gmatch("([^,]+)") do
+        t[#t + 1] = part:match("^%s*(.-)%s*$")  -- trim whitespace
+    end
+    return #t > 0 and t or nil
+end
+
 -- ─── Lazy module accessors ───────────────────────────────────────────────────
 -- Never require() at module top-level; tests stub via package.loaded.
 
@@ -53,8 +65,11 @@ function Repo.buildBook(filepath)
         format      = (filepath:match("%.([^.]+)$") or ""):upper(),
         title       = info.title,
         -- authors field in BookInfoManager is a comma-separated string.
-        author      = info.authors and info.authors:match("^([^,]+)") or nil,
-        authors     = info.authors and { info.authors:match("^([^,]+)") } or nil,
+        author      = (function()
+            local list = splitAuthors(info.authors)
+            return list and list[1] or nil
+        end)(),
+        authors     = splitAuthors(info.authors),
         series      = info.series,
         series_name = series_name,
         series_num  = series_num,
@@ -113,7 +128,12 @@ local function walkBooks(root, depth, out, current_depth)
     if current_depth > depth then return end
     local lfs = require("lfs")
     if not lfs.dir then return end
-    for entry in lfs.dir(root) do
+
+    -- Guard against permission errors / missing dirs raised by lfs.dir(root).
+    local ok, iter = pcall(lfs.dir, root)
+    if not ok then return end
+
+    for entry in iter do
         if entry ~= "." and entry ~= ".." then
             local fp   = root .. "/" .. entry
             local mode = lfs.attributes(fp, "mode")
@@ -185,10 +205,13 @@ function Repo.getSeriesGroups(limit)
         if book and book.series_name then
             local key = book.series_name
             if not groups[key] then
-                groups[key] = { series_name = key, books = {}, latest = 0 }
+                groups[key] = { series_name = key, books = {}, latest = 0, _seen = {} }
                 order[#order + 1] = key
             end
-            groups[key].books[#groups[key].books + 1] = book
+            if not groups[key]._seen[book.filepath] then
+                groups[key]._seen[book.filepath] = true
+                groups[key].books[#groups[key].books + 1] = book
+            end
             if entry.time > groups[key].latest then
                 groups[key].latest = entry.time
             end
@@ -198,8 +221,9 @@ function Repo.getSeriesGroups(limit)
     local list = {}
     for _, k in ipairs(order) do list[#list + 1] = groups[k] end
     table.sort(list, function(a, b) return a.latest > b.latest end)
-    -- Within each group, sort books by series_num ascending.
+    -- Within each group, sort books by series_num ascending. Also remove _seen helper.
     for _, g in ipairs(list) do
+        g._seen = nil
         table.sort(g.books, function(a, b)
             return (tonumber(a.series_num) or 0) < (tonumber(b.series_num) or 0)
         end)
@@ -221,10 +245,10 @@ end
 -- update this single function — that's why the boundary is isolated here.
 
 function Repo.enrichStats(book)
-    local ok, stats = pcall(require, "readerstatistics")
-    if not ok or not stats or not stats.getBookStat then return end
-    local s = stats:getBookStat(book.filepath)
-    if not s then return end
+    local req_ok, stats = pcall(require, "readerstatistics")
+    if not req_ok or not stats or not stats.getBookStat then return end
+    local call_ok, s = pcall(function() return stats:getBookStat(book.filepath) end)
+    if not call_ok or not s then return end
     book.book_time_left_minutes = s.time_left_minutes
     book.book_read_time_seconds = s.read_time_seconds
     book.book_pages_read        = s.pages_read
