@@ -97,7 +97,11 @@ function BookshelfWidget:_rebuild()
     -- Release previous widget tree before replacing (Phase 5 lesson).
     if self[1] and self[1].free then self[1]:free() end
 
-    local PAD       = Size.padding.default
+    -- ── Single layout constant ────────────────────────────────────────────────
+    -- ONE margin/padding value drives every gap on the home screen: page edges,
+    -- cover-to-cover gap, hero text indent, and inter-section vertical gaps.
+    -- Adjust this to tighten or loosen the entire layout proportionally.
+    local PAD       = Size.padding.fullscreen * 2  -- ≈ 30dp at native scale
     local content_w = self.width - PAD * 2
 
     -- Height constants. Size.item.height_small does not exist (Phase 3-5 lesson);
@@ -106,10 +110,10 @@ function BookshelfWidget:_rebuild()
     local label_h = Size.item.height_default
 
     -- Hero card sized around its cover: cover ≈ 30% of content width, 2:3 aspect.
-    -- The hero card overall takes that height plus a small padding budget.
+    -- The hero card overall takes that height plus the single PAD budget.
     local hero_cover_w = math.floor(content_w * 0.30)
-    local hero_cover_h = math.floor(hero_cover_w * 1.5)        -- 2:3 ratio
-    local hero_h       = hero_cover_h + Size.padding.default * 2
+    local hero_cover_h = math.floor(hero_cover_w * 1.5)
+    local hero_h       = hero_cover_h + PAD
 
     -- Build TitleBar first so we can measure its actual height.
     local titlebar = self:_buildTitleBar(content_w)
@@ -132,7 +136,8 @@ function BookshelfWidget:_rebuild()
         width        = content_w,
         height       = hero_h,
         cover_w      = hero_cover_w,
-        cover_h      = hero_cover_h,           -- new param; HeroCard needs it
+        cover_h      = hero_cover_h,
+        pad          = PAD,                     -- single shared gap value
         lines        = lines,
         device_state = self:_buildDeviceState(),
         on_tap       = function(b) self:_openBook(b) end,
@@ -298,6 +303,7 @@ function BookshelfWidget:_rebuild()
     local row_top = ShelfRow.new{
         width          = content_w,
         height         = shelf_h,
+        gap            = PAD,
         items          = items_top,
         on_book_tap    = function(b) bw:_openBook(b) end,
         on_book_hold   = function(b) bw:_openBookMenu(b) end,
@@ -306,6 +312,7 @@ function BookshelfWidget:_rebuild()
     }
     local row_bottom = ShelfRow.new{
         width          = content_w,
+        gap            = PAD,
         height         = shelf_h,
         items          = items_bottom,
         on_book_tap    = function(b) bw:_openBook(b) end,
@@ -336,17 +343,19 @@ function BookshelfWidget:_rebuild()
         width      = self.width,
         height     = self.height,
         VerticalGroup:new{
+            -- Every inter-section gap is the same single PAD value, matching
+            -- the page-edge padding and the inter-cover gap on the shelves.
             align = "left",
             titlebar,
-            VerticalSpan:new{ width = Size.padding.large },
+            VerticalSpan:new{ width = PAD },
             hero,
-            VerticalSpan:new{ width = Size.padding.large },
+            VerticalSpan:new{ width = PAD },
             chips,
-            VerticalSpan:new{ width = Size.padding.large },
+            VerticalSpan:new{ width = PAD },
             row_top,
-            VerticalSpan:new{ width = Size.padding.fullscreen },
+            VerticalSpan:new{ width = PAD },
             row_bottom,
-            VerticalSpan:new{ width = Size.padding.large },
+            VerticalSpan:new{ width = PAD },
             label_widget,
         },
     }

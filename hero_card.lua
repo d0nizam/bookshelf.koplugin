@@ -24,6 +24,8 @@ local HeroCard = InputContainer:extend{
     height      = nil,
     cover_w     = 116,
     cover_h     = nil,
+    pad         = nil,   -- single gap value (cover↔text). Caller passes the
+                         -- BookshelfWidget-wide PAD here for consistent layout.
     lines       = nil,   -- list of token-format strings
     device_state= nil,   -- { now, batt, charging, wifi, light, warmth, mem, ram_mib, disk_free }
     on_tap      = nil,   -- function(book)
@@ -76,10 +78,11 @@ function HeroCard:_renderFull()
         on_hold = self.on_hold,
     }
 
-    -- Generous left padding between the cover and the right column so the
-    -- text content has visible breathing room. Size.padding.fullscreen ≈ 15dp.
-    local text_padding = Size.padding.fullscreen
-    local right_w = self.width - self.cover_w - text_padding * 2
+    -- Single gap value driven by the caller (BookshelfWidget's PAD), so every
+    -- spacing on the home screen — page edges, cover↔text, cover↔cover —
+    -- shares one consistent number.
+    local text_padding = self.pad or Size.padding.fullscreen
+    local right_w = self.width - self.cover_w - text_padding
     local title = TextBoxWidget:new{
         text  = self.book.title or "Untitled",
         face  = Font:getFace("infofont", 26),
