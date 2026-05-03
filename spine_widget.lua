@@ -66,25 +66,35 @@ function SpineWidget:init()
 end
 
 -- Wraps an inner card widget in a "card with shadow" composition. The inner
--- widget is positioned at the bottom-left of the slot; a ShadowRect of the
--- same size is positioned at the top-right, painted behind the card.
+-- widget is positioned at the top-left of the slot; a ShadowRect of the same
+-- size is positioned at the bottom-right, painted behind the card. This
+-- gives the impression of light from the top-left, with the shadow falling
+-- both downward and to the right (the standard direction).
+--
+-- Each positioning container gets its OWN Geom — KOReader containers mutate
+-- dimen.x/y during paint, so a shared Geom causes wrappers to overwrite
+-- each other's positions on second paint and shadows to drift on rerender.
 function SpineWidget:_renderShadowedCard(inner)
     local card_w = self.width  - SHADOW_OFFSET
     local card_h = self.height - SHADOW_OFFSET
-    local outer  = Geom:new{ w = self.width, h = self.height }
+    local function newDimen()
+        return Geom:new{ w = self.width, h = self.height }
+    end
     return OverlapGroup:new{
-        dimen = outer,
-        TopContainer:new{
-            dimen = outer,
+        dimen = newDimen(),
+        -- Shadow at bottom-right.
+        BottomContainer:new{
+            dimen = newDimen(),
             RightContainer:new{
-                dimen = outer,
+                dimen = newDimen(),
                 ShadowRect:new{ width = card_w, height = card_h },
             },
         },
-        BottomContainer:new{
-            dimen = outer,
+        -- Card at top-left, painted on top of the shadow.
+        TopContainer:new{
+            dimen = newDimen(),
             LeftContainer:new{
-                dimen = outer,
+                dimen = newDimen(),
                 inner,
             },
         },
