@@ -53,7 +53,12 @@ function Bookshelf:init()
     -- (no document currently being opened), close FM and present Bookshelf.
     if G_reader_settings:readSetting("start_with") == "bookshelf"
             and not (self.ui and self.ui.document) then
-        UIManager:nextTick(function() self:_takeOver() end)
+        -- Capture FileManager.instance at schedule time. By the time the tick
+        -- fires we want a known reference, not a fresh require lookup that
+        -- could see different state.
+        local FileManager = require("apps/filemanager/filemanager")
+        local fm_instance = FileManager.instance
+        UIManager:nextTick(function() self:_takeOver(fm_instance) end)
     end
 end
 
@@ -128,11 +133,12 @@ function Bookshelf:show()
     UIManager:show(BookshelfWidget:new{})
 end
 
-function Bookshelf:_takeOver()
+function Bookshelf:_takeOver(fm_instance)
     -- Close FileManager if it was the boot path, then show Bookshelf.
-    local ok, FileManager = pcall(require, "apps/filemanager/filemanager")
-    if ok and FileManager and FileManager.instance then
-        UIManager:close(FileManager.instance)
+    -- fm_instance is captured at schedule time (in init()) so we use that known
+    -- reference instead of a fresh require lookup.
+    if fm_instance then
+        UIManager:close(fm_instance)
     end
     self:show()
 end
@@ -142,10 +148,12 @@ end
 -- ---------------------------------------------------------------------------
 
 function Bookshelf:onCloseDocument()
-    -- Re-home to Bookshelf when a book closes, if it is the configured home.
-    if G_reader_settings:readSetting("start_with") == "bookshelf" then
-        UIManager:nextTick(function() self:show() end)
-    end
+    -- Only re-show Bookshelf if the user is actually returning to "home"
+    -- — not if the Reader is closing this document only to immediately open
+    -- another. self.ui.document is still set in the latter case.
+    if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
+    if self.ui and self.ui.document then return end
+    UIManager:nextTick(function() self:show() end)
 end
 
 return Bookshelf
