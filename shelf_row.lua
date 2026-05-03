@@ -53,8 +53,12 @@ end
 -- }
 function ShelfRow.new(opts)
     local n_slots = 4
-    local gap     = opts.gap or Size.padding.default
+    local gap     = opts.gap or Size.padding.large
     local slot_w  = math.floor((opts.width - gap * (n_slots - 1)) / n_slots)
+    -- Force a 2:3 aspect ratio (book-cover standard) so all spines look uniform.
+    -- The shelf row's overall height is ignored except for the dotted base; the
+    -- visual "shelf height" is the spine height, computed from slot_w.
+    local slot_h  = math.floor(slot_w * 1.5)
     local row     = HorizontalGroup:new{}
 
     for i = 1, n_slots do
@@ -69,7 +73,7 @@ function ShelfRow.new(opts)
             row[#row + 1] = SeriesStack:new{
                 series    = item,
                 width     = slot_w,
-                height    = opts.height,
+                height    = slot_h,
                 on_tap    = opts.on_series_tap,
                 on_hold   = opts.on_series_hold,
             }
@@ -78,13 +82,17 @@ function ShelfRow.new(opts)
             row[#row + 1] = SpineWidget:new{
                 book    = item,
                 width   = slot_w,
-                height  = opts.height,
+                height  = slot_h,
                 on_tap  = opts.on_book_tap,
                 on_hold = opts.on_book_hold,
             }
         else
             -- Empty slot — blank spacer so layout is stable.
-            row[#row + 1] = HorizontalSpan:new{ width = slot_w }
+            row[#row + 1] = FrameContainer:new{
+                bordersize = 0,
+                width      = slot_w,
+                height     = slot_h,
+            }
         end
     end
 

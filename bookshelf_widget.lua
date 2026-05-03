@@ -61,8 +61,11 @@ function BookshelfWidget:_rebuild()
     local chip_h  = Size.item.height_default
     local label_h = Size.item.height_default
 
-    -- Hero card ~22% of screen height (spec §3.1).
-    local hero_h = math.floor(self.height * 0.22)
+    -- Hero card sized around its cover: cover ≈ 30% of content width, 2:3 aspect.
+    -- The hero card overall takes that height plus a small padding budget.
+    local hero_cover_w = math.floor(content_w * 0.30)
+    local hero_cover_h = math.floor(hero_cover_w * 1.5)        -- 2:3 ratio
+    local hero_h       = hero_cover_h + Size.padding.default * 2
 
     -- Build TitleBar first so we can measure its actual height.
     local titlebar = self:_buildTitleBar(content_w)
@@ -84,6 +87,8 @@ function BookshelfWidget:_rebuild()
         book         = current,
         width        = content_w,
         height       = hero_h,
+        cover_w      = hero_cover_w,
+        cover_h      = hero_cover_h,           -- new param; HeroCard needs it
         lines        = lines,
         device_state = self:_buildDeviceState(),
         on_tap       = function(b) self:_openBook(b) end,
@@ -420,6 +425,25 @@ function BookshelfWidget:_openGearMenu()
     UIManager:show(ButtonDialog:new{
         title = "Bookshelf",
         buttons = {
+            {
+                { text = G_reader_settings:readSetting("start_with") == "bookshelf"
+                      and _("\xe2\x9c\x93 Bookshelf is my home screen")
+                      or  _("Set as home screen"),
+                  callback = function()
+                    G_reader_settings:saveSetting("start_with", "bookshelf")
+                    local ok_notif, Notification = pcall(require, "ui/widget/notification")
+                    if ok_notif and Notification then
+                        UIManager:show(Notification:new{
+                            text = _("Bookshelf will load on next launch"),
+                        })
+                    else
+                        UIManager:show(require("ui/widget/infomessage"):new{
+                            text    = _("Bookshelf will load on next launch"),
+                            timeout = 2,
+                        })
+                    end
+                  end },
+            },
             {
                 { text = "Browse files\xe2\x80\xa6",
                   callback = function() bw:_browseFiles() end },

@@ -21,6 +21,12 @@ local function splitAuthors(s)
     return #t > 0 and t or nil
 end
 
+-- Supported e-book extensions (used in both getCurrent and walkBooks).
+local SUPPORTED_EXT = {
+    epub=true, pdf=true, mobi=true, azw3=true, fb2=true,
+    cbz=true, cbr=true, txt=true, md=true, html=true, htm=true, djvu=true,
+}
+
 -- ─── Lazy module accessors ───────────────────────────────────────────────────
 -- Never require() at module top-level; tests stub via package.loaded.
 
@@ -90,6 +96,11 @@ end
 function Repo.getCurrent()
     local lastfile = G_reader_settings:readSetting("lastfile")
     if not lastfile then return nil end
+    -- Only accept supported book formats. Otherwise hero card stays empty —
+    -- avoids stale PNGs / config files / random opened-once non-books from
+    -- taking the hero slot.
+    local ext = lastfile:match("%.([^.]+)$")
+    if not ext or not SUPPORTED_EXT[ext:lower()] then return nil end
     return Repo.buildBook(lastfile)
 end
 
@@ -116,12 +127,6 @@ end
 -- recursive filesystem walk rooted at G_reader_settings `home_dir`.
 -- Walk depth is capped by `bookshelf_latest_walk_depth` setting (default 3).
 -- Results are NOT memoised here — caching is a BookshelfWidget-level concern.
-
--- Supported e-book extensions for the filesystem walk.
-local SUPPORTED_EXT = {
-    epub=true, pdf=true, mobi=true, azw3=true, fb2=true,
-    cbz=true, cbr=true, txt=true, md=true, html=true, htm=true, djvu=true,
-}
 
 -- KOReader ships LFS as `libs/libkoreader-lfs` and that's the only path that
 -- works inside the plugin loader. The unprefixed `require("lfs")` resolves

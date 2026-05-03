@@ -20,6 +20,7 @@ local HeroCard = InputContainer:extend{
     width       = nil,
     height      = nil,
     cover_w     = 116,
+    cover_h     = nil,
     lines       = nil,   -- list of token-format strings
     device_state= nil,   -- { now, batt, charging, wifi, light, warmth, mem, ram_mib, disk_free }
     on_tap      = nil,   -- function(book)
@@ -27,6 +28,7 @@ local HeroCard = InputContainer:extend{
 }
 
 function HeroCard:init()
+    self.cover_h = self.cover_h or self.height
     self.dimen = Geom:new{ w = self.width, h = self.height }
     if not self.book then
         self[1] = self:_renderEmpty()
@@ -60,7 +62,9 @@ end
 
 function HeroCard:_renderFull()
     local cover = SpineWidget:new{
-        book = self.book, width = self.cover_w, height = self.height,
+        book   = self.book,
+        width  = self.cover_w,
+        height = self.cover_h or self.height,
     }
 
     local right_w = self.width - self.cover_w - Size.padding.default
