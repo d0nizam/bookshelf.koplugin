@@ -74,7 +74,7 @@ function HeroCard:_renderFull()
     local right_w = self.width - self.cover_w - Size.padding.default
     local title = TextBoxWidget:new{
         text  = self.book.title or "Untitled",
-        face  = Font:getFace("infofont", 18),
+        face  = Font:getFace("infofont", 26),
         width = right_w,
         bold  = true,
     }
@@ -82,7 +82,7 @@ function HeroCard:_renderFull()
     -- italic deferred to font-face work in a future revision
     local author = TextBoxWidget:new{
         text  = self.book.author or "",
-        face  = Font:getFace("infofont", 11),
+        face  = Font:getFace("infofont", 16),
         width = right_w,
     }
 
@@ -101,7 +101,7 @@ function HeroCard:_renderFull()
                 local display = rendered:gsub("%[/?[biu]%]", "")
                 right_top[#right_top + 1] = TextBoxWidget:new{
                     text  = display,
-                    face  = Font:getFace("infofont", 11),
+                    face  = Font:getFace("infofont", 14),
                     width = right_w,
                 }
             end

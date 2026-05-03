@@ -4,7 +4,7 @@
 --
 -- Layout (top → bottom):
 --   ChipStrip  (Recent / Latest / Series / ★)
---   3 × ShelfRow  (4 spines each = 12 books per page)
+--   3 × ShelfRow  (5 spines each = 15 books per page)
 --   Page indicator  "Page N / total  ‹  ›"
 --
 -- Pagination: swipe west = next page, swipe east = prev page.
@@ -30,9 +30,9 @@ local Repo            = require("book_repository")
 
 -- ─── Layout constants ─────────────────────────────────────────────────────────
 
-local PER_ROW  = 4
+local PER_ROW  = 5
 local ROWS     = 3
-local PER_PAGE = PER_ROW * ROWS  -- 12
+local PER_PAGE = PER_ROW * ROWS  -- 15
 
 -- Height of one chip-strip row.
 -- Size.item.height_small does not exist in KOReader; use height_default (~30dp)

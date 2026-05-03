@@ -117,9 +117,9 @@ function BookshelfWidget:_rebuild()
     }
 
     -- ── Shelf items ───────────────────────────────────────────────────────────
-    local items     = self:_fetchChipItems(8)
+    local items     = self:_fetchChipItems(10)
     local total     = self:_chipTotal()
-    local shown     = math.min(8, #items)
+    local shown     = math.min(10, #items)
 
     -- ── Empty-state placeholder (spec §8: "Selected chip yields zero books") ────
     -- When the active chip returns no items, replace both shelf rows with a
@@ -189,12 +189,12 @@ function BookshelfWidget:_rebuild()
         -- walk), so omit the "of N" portion.
         label_text = string.format(
             "%s  \xc2\xb7  1\xe2\x80\x93%d  \xe2\x80\xba",
-            self:_chipLabel(), math.min(8, shown)
+            self:_chipLabel(), math.min(10, shown)
         )
     else
         label_text = string.format(
             "%s  \xc2\xb7  1\xe2\x80\x93%d of %d  \xe2\x80\xba",
-            self:_chipLabel(), math.min(8, shown), total
+            self:_chipLabel(), math.min(10, shown), total
         )
     end
 
@@ -243,8 +243,9 @@ function BookshelfWidget:_rebuild()
     local label_widget = ShelfLabel:new{}
 
     -- ── Shelf rows ────────────────────────────────────────────────────────────
-    local items_top    = { items[1], items[2], items[3], items[4] }
-    local items_bottom = { items[5], items[6], items[7], items[8] }
+    local items_top, items_bottom = {}, {}
+    for i = 1, 5 do items_top[i]    = items[i]      end
+    for i = 1, 5 do items_bottom[i] = items[i + 5]  end
 
     local row_top = ShelfRow.new{
         width          = content_w,
@@ -361,17 +362,19 @@ end
 -- correctly (Phase 5 confirmed its API).
 
 function BookshelfWidget:_buildTitleBar(w)
-    -- Build a subtitle carrying the current time and, where available, battery%.
+    -- Title carries the current time and, where available, battery%.
+    -- "BOOKSHELF" label removed; clock+battery occupy the title slot directly.
     local ds = self:_buildDeviceState()
-    local subtitle = os.date("%H:%M")
+    local time_str = os.date("%H:%M")
+    local batt_str = ""
     if ds.batt then
-        local batt_str = tostring(ds.batt) .. "%"
-        if ds.charging then batt_str = batt_str .. " \xe2\x96\xb2" end  -- ▲ charging indicator
-        subtitle = subtitle .. "  " .. batt_str
+        batt_str = (ds.charging and "\xe2\x9a\xa1" or "") .. tostring(ds.batt) .. "%"
     end
+    local title_text = batt_str ~= ""
+        and string.format("%s   %s", time_str, batt_str)
+        or  time_str
     return TitleBar:new{
-        title                    = "BOOKSHELF",
-        subtitle                 = subtitle,
+        title                    = title_text,
         align                    = "left",
         width                    = w,
         fullscreen               = false,
