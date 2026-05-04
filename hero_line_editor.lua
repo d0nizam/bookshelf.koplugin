@@ -9,6 +9,85 @@ local InputDialog = require("ui/widget/inputdialog")
 local UIManager   = require("ui/uimanager")
 local Regions     = require("hero_regions")
 local _           = require("bookshelf_i18n").gettext
+local Font     = require("ui/font")
+local FontList = require("fontlist")
+
+-- Cycle helper. Returns the next entry in `list` after `current`, wrapping
+-- around. If current is not found, returns list[1].
+local function cycleNext(list, current)
+    for i, v in ipairs(list) do
+        if v == current then return list[(i % #list) + 1] end
+    end
+    return list[1]
+end
+
+local ALIGN_CYCLE  = { "left", "center", "right" }
+local ALIGN_LABELS = { left = "L", center = "C", right = "R" }
+
+-- showSizeNudge — bookends-style ±1 / ±5 nudge dialog for the font_size
+-- field. Calls on_change(value) on each tap, on_close() when dismissed.
+local function showSizeNudge(current, default, on_change, on_close)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local d
+    local function refresh() d:setTitle(_("Font size") .. ": " .. current) end
+    local function nudge(delta)
+        current = math.max(8, math.min(48, current + delta))
+        on_change(current)
+        refresh()
+    end
+    d = ButtonDialog:new{
+        title = _("Font size") .. ": " .. current,
+        buttons = {
+            {
+                { text = "-5", callback = function() nudge(-5) end },
+                { text = "-1", callback = function() nudge(-1) end },
+                { text = "+1", callback = function() nudge(1)  end },
+                { text = "+5", callback = function() nudge(5)  end },
+            },
+            {
+                { text = _("Default"), callback = function()
+                    current = default
+                    on_change(current)
+                    refresh()
+                end },
+                { text = _("Close"), is_enter_default = true,
+                  callback = function() UIManager:close(d); on_close() end },
+            },
+        },
+    }
+    UIManager:show(d)
+end
+
+-- showFontPicker — soft-imports the bookends picker if available; otherwise
+-- presents a simple Menu over FontList. Calls on_select(file_or_nil).
+local function showFontPicker(current_face, default_face, on_select)
+    local ok, BasicBookends = pcall(require, "basic_bookends")
+    if ok and BasicBookends and BasicBookends.showFontPicker then
+        BasicBookends.showFontPicker(BasicBookends, current_face,
+            function(file) on_select(file) end, default_face)
+        return
+    end
+    -- Fallback: native KOReader FontList.
+    local Menu   = require("ui/widget/menu")
+    local Screen = require("device").screen
+    local items  = { { text = _("(Default)"), callback = function() on_select(nil) end } }
+    for _, file in ipairs(FontList:getFontList() or {}) do
+        items[#items + 1] = { text = file, callback = function() on_select(file) end }
+    end
+    local mw = math.floor(Screen:getWidth() * 0.85)
+    local mh = math.floor(Screen:getHeight() * 0.7)
+    local menu
+    menu = Menu:new{
+        title      = _("Pick font"),
+        item_table = items,
+        is_popout  = true,
+        width      = mw,
+        height     = mh,
+    }
+    local x = math.floor((Screen:getWidth() - mw) / 2)
+    local y = math.floor((Screen:getHeight() - mh) / 2)
+    UIManager:show(menu, nil, nil, x, y)
+end
 
 local LineEditor = {}
 
@@ -57,15 +136,72 @@ function LineEditor.show(region_key, bw, settings_module)
 
     local function buildButtons()
         local rows = {}
-        -- Action row (Style/Bar rows added in later tasks)
+
+        -- Row 1: text style controls.
+        local style_row = {
+            {
+                text_func = function() return draft.bold and (_("Bold") .. " \xE2\x9C\x93") or _("Bold") end,
+                callback  = function()
+                    if dialog then dialog:onCloseKeyboard() end
+                    draft.bold = not draft.bold
+                    applyLivePreview()
+                    if dialog then dialog:reinit() end
+                end,
+            },
+            {
+                text_func = function() return _("Size") .. ": " .. (draft.font_size or "") end,
+                callback  = function()
+                    if dialog then dialog:onCloseKeyboard() end
+                    showSizeNudge(
+                        draft.font_size or Regions.DEFAULTS[region_key].font_size,
+                        Regions.DEFAULTS[region_key].font_size,
+                        function(val) draft.font_size = val; applyLivePreview() end,
+                        function() if dialog then dialog:reinit() end end)
+                end,
+            },
+            {
+                text_func = function() return draft.font_face and _("Font \xE2\x9C\x93") or _("Font\xE2\x80\xA6") end,
+                callback  = function()
+                    if dialog then dialog:onCloseKeyboard() end
+                    showFontPicker(draft.font_face, Regions.DEFAULTS[region_key].font_face,
+                        function(file)
+                            draft.font_face = file
+                            applyLivePreview()
+                            if dialog then dialog:reinit() end
+                        end)
+                end,
+            },
+        }
+        -- Description has no case toggle (would be hostile on a long blurb).
+        if region_key ~= "description" then
+            style_row[#style_row + 1] = {
+                text_func = function() return draft.uppercase and "AA" or "Aa" end,
+                callback  = function()
+                    if dialog then dialog:onCloseKeyboard() end
+                    draft.uppercase = not draft.uppercase
+                    applyLivePreview()
+                    if dialog then dialog:reinit() end
+                end,
+            }
+        end
+        style_row[#style_row + 1] = {
+            text_func = function() return ALIGN_LABELS[draft.alignment or "left"] or "L" end,
+            callback  = function()
+                if dialog then dialog:onCloseKeyboard() end
+                draft.alignment = cycleNext(ALIGN_CYCLE, draft.alignment or "left")
+                applyLivePreview()
+                if dialog then dialog:reinit() end
+            end,
+        }
+
+        rows[#rows + 1] = style_row
+
+        -- Row 2: action row (existing).
         rows[#rows + 1] = {
             {
                 text     = _("Cancel"),
                 id       = "close",
                 callback = function()
-                    -- Safety net: even though we never wrote during the
-                    -- session, restore the snapshot in case something else
-                    -- did. Then repaint with the now-stored values.
                     Regions.restore(region_key, snapshot)
                     if bw and bw._swapHeroRightColumnInPlace then
                         bw:_swapHeroRightColumnInPlace(Regions.read())
@@ -93,10 +229,9 @@ function LineEditor.show(region_key, bw, settings_module)
                     draft.alignment = d.alignment
                     draft.bar_height= d.bar_height
                     draft.bar_style = d.bar_style
-                    if dialog and dialog.setInputText then
-                        dialog:setInputText(d.template)
-                    end
+                    if dialog and dialog.setInputText then dialog:setInputText(d.template) end
                     applyLivePreview()
+                    if dialog then dialog:reinit() end
                 end,
             },
             {
