@@ -2,11 +2,6 @@
 -- The top-level home screen widget. Composes TitleBar + HeroCard + ChipStrip
 -- + shelf-pair label + two ShelfRows, owns chip-state and refresh.
 --
--- Task 6.1: skeleton composition (titlebar stub, hero, chip strip, shelf pair)
--- Task 6.2: real TitleBar with gear icon; tappable shelf-pair label → LibraryView
--- Task 6.3: long-press book menu; series-stack expand-in-place
--- Task 9.1: empty states — chip-zero placeholder card
-
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -29,7 +24,6 @@ local Repo        = require("book_repository")
 local HeroCard    = require("hero_card")
 local ChipStrip   = require("chip_strip")
 local ShelfRow    = require("shelf_row")
-local LibraryView = require("library_view")
 
 -- ─── BookshelfWidget ──────────────────────────────────────────────────────────
 
@@ -66,50 +60,90 @@ function BookshelfWidget:init()
         },
     }
 
-    -- Register top-zone touch zones so the standard KOReader menu opens via
-    -- tap/swipe at the top of the screen, exactly as it does in FileManager.
-    -- UIManager does not propagate non-consumed events to widgets below the
-    -- top one, so we cannot rely on the underlying FileManager's own zones —
-    -- we have to register our own and forward to FileManagerMenu directly.
-    local DTAP_ZONE_MENU = G_defaults:readSetting("DTAP_ZONE_MENU")
-    self:registerTouchZones({
-        {
-            id = "bookshelf_top_tap",
-            ges = "tap",
-            screen_zone = {
-                ratio_x = DTAP_ZONE_MENU.x, ratio_y = DTAP_ZONE_MENU.y,
-                ratio_w = DTAP_ZONE_MENU.w, ratio_h = DTAP_ZONE_MENU.h,
-            },
-            handler = function(ges) return self:_showStandardMenu(ges) end,
-        },
-        {
-            id = "bookshelf_top_swipe",
-            ges = "swipe",
-            screen_zone = {
-                ratio_x = DTAP_ZONE_MENU.x, ratio_y = DTAP_ZONE_MENU.y,
-                ratio_w = DTAP_ZONE_MENU.w, ratio_h = DTAP_ZONE_MENU.h,
-            },
-            handler = function(ges) return self:_showStandardMenu(ges) end,
-        },
-    })
+    -- (Top-zone tap/swipe to open the FM menu is handled by the FileManager
+    -- touch-zone passthrough in handleEvent below; no need to mirror those
+    -- zones here. Doing so previously also ignored the user's
+    -- `activation_menu` preference — fixed as a side benefit.)
 
     self:_rebuild()
 end
 
--- Forward the standard top-zone gesture to FileManager's menu, mirroring
--- FileManagerMenu:onTapShowMenu / :onSwipeShowMenu behaviour so the menu
--- looks and behaves identically to the file manager's.
-function BookshelfWidget:_showStandardMenu(ges)
-    local FileManager = require("apps/filemanager/filemanager")
-    local fm = FileManager.instance
-    if not fm or not fm.menu then return false end
-    -- Swipe handler only fires on a south (downward) swipe; tap handler
-    -- always fires for taps in the zone.
-    if ges and ges.direction and ges.direction ~= "south" then
-        return false
+-- Bookshelf is the topmost widget while it's on screen, so KOReader's
+-- UIManager:sendEvent dispatches gestures to us alone — FileManager
+-- underneath us is NOT is_always_active, so its registered touch zones
+-- (which include user-configured gestures from gestures.koplugin: corner
+-- taps for night mode, edge swipes for brightness/warmth, etc.) never
+-- fire on their own.
+--
+-- The fix: for Gesture events specifically, walk FileManager's touch
+-- zones FIRST. If one matches and consumes the gesture, we're done.
+-- Otherwise fall through to our normal InputContainer handling so hero
+-- taps, chip taps, swipe-to-paginate, etc. continue to work.
+--
+-- We only check FM's _ordered_touch_zones — NOT fm:handleEvent — to
+-- avoid propagating into FM's child widget tree (which would risk
+-- accidentally activating the file list underneath us).
+function BookshelfWidget:handleEvent(event)
+    -- Two dispatch problems to fix, both stemming from KOReader's
+    -- UIManager:sendEvent only delivering events to the topmost widget
+    -- (us) and not propagating unhandled events down the window stack to
+    -- FileManager (which is NOT is_always_active):
+    --
+    --   1. Gesture events (input → onGesture). gestures.koplugin's
+    --      touch zones are registered against FM, so corner taps and
+    --      edge swipes (configured in the user's gesture_fm profile)
+    --      never get checked. Walk FM's _ordered_touch_zones FIRST and
+    --      let a matching zone consume the gesture. Skip fm:handleEvent
+    --      to avoid propagating into FM's child widget tree (which would
+    --      let the file list underneath activate book taps).
+    --
+    --   2. Dispatcher-emitted action events (e.g. IncreaseFlIntensity
+    --      from a brightness gesture, ToggleNightMode, etc.). These are
+    --      sent via UIManager:sendEvent and die in our widget. For any
+    --      non-gesture event we don't consume ourselves, forward it to
+    --      fm:handleEvent so FM's registered modules (DeviceListener,
+    --      etc.) get a chance. Side-effect: events delivered via
+    --      broadcastEvent (Suspend, Resume, etc.) get double-handled —
+    --      FM gets them via the broadcast loop AND via our forward.
+    --      Accepted because the relevant broadcast events are idempotent.
+    if event.handler == "onGesture" then
+        local fm = require("apps/filemanager/filemanager").instance
+        local ev = event.args[1]
+        local zone_lists = {}
+        if fm and fm._ordered_touch_zones then
+            zone_lists[#zone_lists + 1] = fm._ordered_touch_zones
+        end
+        if fm and fm.menu and fm.menu._ordered_touch_zones then
+            zone_lists[#zone_lists + 1] = fm.menu._ordered_touch_zones
+        end
+        for _, zones in ipairs(zone_lists) do
+            for _, tzone in ipairs(zones) do
+                if tzone.gs_range:match(ev) and tzone.handler(ev) then
+                    return true
+                end
+            end
+        end
+        return InputContainer.handleEvent(self, event)
     end
-    fm.menu:onShowMenu()
-    return true
+
+    if InputContainer.handleEvent(self, event) then return true end
+    -- Forward unhandled events to FM so Dispatcher action events
+    -- (IncreaseFlIntensity, ToggleNightMode, etc.) reach FM's registered
+    -- modules. EXCLUDE lifecycle events that target THIS widget — without
+    -- the blacklist, UIManager:close(self) propagates CloseWidget to us,
+    -- which forwards it to FM, which then tears itself down (nil'ing
+    -- FileManager.instance). That breaks all subsequent gesture forwarding.
+    local NEVER_FORWARD = {
+        onCloseWidget   = true,
+        onFlushSettings = true,
+        onShow          = true,
+        onClose         = true,
+    }
+    if NEVER_FORWARD[event.handler] then return end
+    local fm = require("apps/filemanager/filemanager").instance
+    if fm and fm ~= self then
+        return fm:handleEvent(event)
+    end
 end
 
 -- ─── _rebuild ─────────────────────────────────────────────────────────────────
@@ -128,6 +162,11 @@ function BookshelfWidget:_rebuild()
             if not ok then
                 require("logger").warn("[bookshelf] tree free failed:", err)
             end
+            -- Force a full GC pass so FFI finalizers run on the just-freed
+            -- BBs and Lua tables. Without this, LuaJIT's incremental GC
+            -- falls behind the chip-switch rate and RSS climbs ~5 MiB per
+            -- toggle while bbs sit eligible-but-not-collected.
+            collectgarbage("collect")
         end)
     end
 
@@ -135,7 +174,7 @@ function BookshelfWidget:_rebuild()
     -- ONE margin/padding value drives every gap on the home screen: page edges,
     -- cover-to-cover gap, hero text indent, and inter-section vertical gaps.
     -- Adjust this to tighten or loosen the entire layout proportionally.
-    local PAD       = Size.padding.fullscreen * 2  -- ≈ 30dp at native scale
+    local PAD       = math.floor(Size.padding.fullscreen * 2 * 0.8)  -- ~24dp (was 30dp)
     local content_w = self.width - PAD * 2
 
     -- Height constants. Size.item.height_small does not exist (Phase 3-5 lesson);
@@ -200,7 +239,7 @@ function BookshelfWidget:_rebuild()
             { key = "recent",    label = "Recent"  },
             { key = "latest",    label = "Latest"  },
             { key = "series",    label = "Series"  },
-            { key = "favorites", label = "\xe2\x98\x85" },  -- ★ UTF-8
+            { key = "favorites", label = "Favourites" },
         },
         active   = self.chip,
         width    = content_w,
@@ -275,6 +314,7 @@ function BookshelfWidget:_rebuild()
             },
         }
 
+        local VerticalSpan = require("ui/widget/verticalspan")
         self[1] = FrameContainer:new{
             bordersize = 0,
             padding    = PAD,
@@ -285,9 +325,10 @@ function BookshelfWidget:_rebuild()
             height     = self.height,
             VerticalGroup:new{
                 align = "left",
-                titlebar,
                 hero,
+                VerticalSpan:new{ width = PAD },
                 chips,
+                VerticalSpan:new{ width = PAD },
                 placeholder,
             },
         }
@@ -456,8 +497,17 @@ end
 -- Returns up to n items for the current chip (or the expanded-series flat list).
 function BookshelfWidget:_fetchChipItems(n)
     -- When a series is expanded, show that series' books as flat spine widgets.
+    -- Rebuild from filepaths so each render gets a fresh cover_bb — the cached
+    -- Book objects on self._expanded_series.books had their bbs freed by the
+    -- prior SeriesStack render (image_disposable=true on the shelf path),
+    -- and reusing them would dereference freed memory and SEGV.
     if self._expanded_series then
-        return self._expanded_series.books
+        local fresh = {}
+        for _, b in ipairs(self._expanded_series.books) do
+            local nb = b.filepath and Repo.buildBook(b.filepath) or b
+            fresh[#fresh + 1] = nb
+        end
+        return fresh
     end
     if self.chip == "recent"    then return Repo.getRecent(n)       end
     if self.chip == "latest"    then return Repo.getLatest(n)       end
@@ -553,6 +603,38 @@ function BookshelfWidget:_buildDeviceState()
         return require("device"):getPowerDevice()
     end)
     local ok_nm, NetMgr = pcall(require, "ui/network/manager")
+    local light, warmth
+    if ok_pd and PowerD then
+        if PowerD.frontlightIntensity then
+            local ok, v = pcall(function() return PowerD:frontlightIntensity() end)
+            if ok then light = v end
+        end
+        if PowerD.frontlightWarmth then
+            local ok, v = pcall(function() return PowerD:frontlightWarmth() end)
+            if ok then warmth = v end
+        end
+    end
+    -- Memory stats. util.calcFreeMem returns (free_bytes, total_bytes).
+    -- Our process RSS comes from /proc/self/status on Linux/Kindle.
+    local mem_pct, ram_mib
+    local ok_util, util = pcall(require, "util")
+    if ok_util and util and util.calcFreeMem then
+        local free, total = util.calcFreeMem()
+        if free and total and total > 0 then
+            mem_pct = math.floor((1 - free / total) * 100 + 0.5)
+        end
+    end
+    local fh = io.open("/proc/self/status", "r")
+    if fh then
+        for line in fh:lines() do
+            local kb = line:match("^VmRSS:%s+(%d+)%s+kB")
+            if kb then
+                ram_mib = math.floor(tonumber(kb) / 1024 + 0.5)
+                break
+            end
+        end
+        fh:close()
+    end
     return {
         now      = os.time(),
         batt     = (ok_pd and PowerD and PowerD.getCapacity)
@@ -561,6 +643,10 @@ function BookshelfWidget:_buildDeviceState()
                        and PowerD:isCharging() or false,
         wifi     = (ok_nm and NetMgr and NetMgr.isWifiOn and NetMgr:isWifiOn())
                        and "on" or "off",
+        light    = light,
+        warmth   = warmth,
+        mem      = mem_pct,
+        ram_mib  = ram_mib,
     }
 end
 
@@ -642,14 +728,21 @@ end
 function BookshelfWidget:_openGearMenu()
     local ButtonDialog = require("ui/widget/buttondialog")
     local bw = self
-    UIManager:show(ButtonDialog:new{
+    local dialog
+    local function closing(fn)
+        return function()
+            if fn then fn() end
+            UIManager:close(dialog)
+        end
+    end
+    dialog = ButtonDialog:new{
         title = "Bookshelf",
         buttons = {
             {
                 { text = G_reader_settings:readSetting("start_with") == "bookshelf"
                       and _("\xe2\x9c\x93 Bookshelf is my home screen")
                       or  _("Set as home screen"),
-                  callback = function()
+                  callback = closing(function()
                     G_reader_settings:saveSetting("start_with", "bookshelf")
                     local ok_notif, Notification = pcall(require, "ui/widget/notification")
                     if ok_notif and Notification then
@@ -662,27 +755,24 @@ function BookshelfWidget:_openGearMenu()
                             timeout = 2,
                         })
                     end
-                  end },
+                  end) },
             },
             {
                 { text = "Browse files\xe2\x80\xa6",
-                  callback = function() bw:_browseFiles() end },
+                  callback = closing(function() bw:_browseFiles() end) },
             },
             {
                 { text = "Settings\xe2\x80\xa6",
-                  callback = function()
-                    require("settings"):show()
-                  end },
+                  callback = closing(function() require("settings"):show(bw) end) },
                 { text = "About",
-                  callback = function()
-                    require("settings"):_about()
-                  end },
+                  callback = closing(function() require("settings"):_about() end) },
             },
             {
-                { text = "Cancel", callback = function() end },
+                { text = "Cancel", callback = closing() },
             },
         },
-    })
+    }
+    UIManager:show(dialog)
 end
 
 -- ─── Long-press book menu (Task 6.3) ─────────────────────────────────────────
@@ -706,12 +796,22 @@ function BookshelfWidget:_openBookMenu(item)
     end)
     local fav_label = (ok_fav and in_fav)
         and "Remove from favourites" or "Add to favourites"
-    UIManager:show(ButtonDialog:new{
+    -- ButtonDialog does NOT auto-close on a button tap — each callback has to
+    -- call UIManager:close itself. Wrap with a closing helper so all callbacks
+    -- close the dialog after their action runs.
+    local dialog
+    local function closing(fn)
+        return function()
+            if fn then fn() end
+            UIManager:close(dialog)
+        end
+    end
+    dialog = ButtonDialog:new{
         title = book.title or book.filename or "Book",
         buttons = {
             {
                 { text = "Show info",
-                  callback = function()
+                  callback = closing(function()
                     local FileManager = require("apps/filemanager/filemanager")
                     local FileManagerBookInfo = require("apps/filemanager/filemanagerbookinfo")
                     if FileManager.instance and FileManager.instance.bookinfo then
@@ -719,9 +819,9 @@ function BookshelfWidget:_openBookMenu(item)
                     else
                         FileManagerBookInfo:new{}:show(book.filepath)
                     end
-                  end },
+                  end) },
                 { text = fav_label,
-                  callback = function()
+                  callback = closing(function()
                     -- Toggle favourite status.
                     local ok, already = pcall(function()
                         return ReadCollection:isFileInCollection(book.filepath, "favorites")
@@ -733,37 +833,48 @@ function BookshelfWidget:_openBookMenu(item)
                     end
                     bw:_rebuild()
                     UIManager:setDirty(bw, "ui")
-                  end },
+                  end) },
             },
             {
                 { text = "Remove from history",
-                  callback = function()
+                  callback = closing(function()
                     require("readhistory"):removeItemByPath(book.filepath)
                     bw:_rebuild()
                     UIManager:setDirty(bw, "ui")
-                  end },
-                { text = "Cancel", callback = function() end },
+                  end) },
+            },
+            {
+                { text = "Cancel", callback = closing() },
             },
         },
-    })
+    }
+    UIManager:show(dialog)
 end
 
 -- _openSeriesMenu(series)  — long-press on a series stack.
 function BookshelfWidget:_openSeriesMenu(series)
     local ButtonDialog = require("ui/widget/buttondialog")
     local bw = self
-    UIManager:show(ButtonDialog:new{
+    local dialog
+    local function closing(fn)
+        return function()
+            if fn then fn() end
+            UIManager:close(dialog)
+        end
+    end
+    dialog = ButtonDialog:new{
         title = series.series_name or "Series",
         buttons = {
             {
                 { text = "Browse series",
-                  callback = function() bw:_expandSeries(series) end },
+                  callback = closing(function() bw:_expandSeries(series) end) },
             },
             {
-                { text = "Cancel", callback = function() end },
+                { text = "Cancel", callback = closing() },
             },
         },
-    })
+    }
+    UIManager:show(dialog)
 end
 
 -- ─── Series expand-in-place (Task 6.3) ───────────────────────────────────────

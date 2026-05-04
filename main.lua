@@ -32,6 +32,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
 local _               = require("bookshelf_i18n").gettext
+local T               = require("ffi/util").template
 
 local Bookshelf = WidgetContainer:extend{
     name        = "bookshelf",
@@ -89,6 +90,10 @@ function Bookshelf:init()
     -- Patch the start_with menu so users can pick Bookshelf as their home.
     self:_registerStartWithMenu()
 
+    -- Add bookshelf anchors to the FM menu_order so our entries don't get
+    -- the "NEW:" prefix MenuSorter applies to anything orphan-positioned.
+    self:_extendMenuOrder()
+
     -- Register "Open Bookshelf" in the main menu (works in both FM and Reader).
     self.ui.menu:registerToMainMenu(self)
 
@@ -110,6 +115,8 @@ end
 -- ---------------------------------------------------------------------------
 
 function Bookshelf:_registerStartWithMenu()
+    local plugin = self  -- captured by the patches below for runtime access
+
     -- Monkey-patch FileManagerMenu.getStartWithMenuTable at the class level.
     -- This is the only reliable way to inject into the lazy-built start_with
     -- sub_item_table (see API notes at top of file).
@@ -136,42 +143,147 @@ function Bookshelf:_registerStartWithMenu()
             return result
         end
 
+        -- Wrap the OTHER start_with options' callbacks: if the user picks
+        -- file browser / history / etc. while Bookshelf is currently up,
+        -- close it so they immediately see the new home (otherwise they'd
+        -- have to manually dismiss Bookshelf and the change wouldn't seem
+        -- to take effect until next launch).
+        for _i, entry in ipairs(result.sub_item_table) do
+            local orig_cb = entry.callback
+            entry.callback = function(...)
+                if orig_cb then orig_cb(...) end
+                if plugin._isShowing and plugin:_isShowing()
+                        and plugin._widget then
+                    UIManager:close(plugin._widget)
+                end
+            end
+        end
+
         -- Duplicate guard (safety net in case patch fires more than once).
         -- NB: do NOT name the loop index `_` — that would shadow the outer
         -- gettext binding and `_("Bookshelf")` below would call a number.
+        local already
         for _i, entry in ipairs(result.sub_item_table) do
-            if entry.text == _("Bookshelf") then return result end
+            if entry.text == _("Bookshelf") then already = true; break end
+        end
+        if not already then
+            table.insert(result.sub_item_table, {
+                text    = _("Bookshelf"),
+                radio   = true,
+                checked_func = function()
+                    return G_reader_settings:readSetting("start_with") == "bookshelf"
+                end,
+                callback = function()
+                    G_reader_settings:saveSetting("start_with", "bookshelf")
+                    -- Show Bookshelf immediately if not already showing.
+                    if plugin._isShowing and not plugin:_isShowing() then
+                        plugin:show()
+                    end
+                end,
+            })
         end
 
-        table.insert(result.sub_item_table, {
-            text    = _("Bookshelf"),
-            radio   = true,
-            checked_func = function()
-                return G_reader_settings:readSetting("start_with") == "bookshelf"
-            end,
-            callback = function()
-                G_reader_settings:saveSetting("start_with", "bookshelf")
-            end,
-        })
+        -- Upstream text_func iterates a hard-coded list of start_with values
+        -- (file browser / history / favorites / folder shortcuts / last
+        -- file). When the user picks Bookshelf, none match — so the parent
+        -- menu row reads "Start with: nil". Wrap text_func to label our
+        -- value; defer to the original for everything else.
+        local orig_text_func = result.text_func
+        result.text_func = function()
+            if G_reader_settings:readSetting("start_with") == "bookshelf" then
+                return T(_("Start with: %1"), _("Bookshelf"))
+            end
+            return orig_text_func and orig_text_func() or ""
+        end
         return result
     end
+
 end
 
 -- ---------------------------------------------------------------------------
 -- Main menu entry
 -- ---------------------------------------------------------------------------
 
+-- Extend KOReader's filemanager_menu_order so our entries land in the
+-- folder/file tab WITHOUT the "NEW:" prefix MenuSorter applies to items
+-- not in any order list. Idempotent — safe to call from init() each load.
+function Bookshelf:_extendMenuOrder()
+    local ok, order = pcall(require, "ui/elements/filemanager_menu_order")
+    if not ok or type(order) ~= "table"
+       or type(order.filemanager_settings) ~= "table" then
+        return
+    end
+    for _i, id in ipairs(order.filemanager_settings) do
+        if id == "bookshelf_root" then return end
+    end
+    table.insert(order.filemanager_settings, "----------------------------")
+    table.insert(order.filemanager_settings, "bookshelf_root")
+end
+
+-- True when the BookshelfWidget instance is in the UIManager window stack
+-- (i.e. it's currently shown over FM, regardless of whether a Reader is
+-- ALSO on top of it). Cleared via _on_close_callback when UIManager:close
+-- removes our widget from the stack.
+function Bookshelf:_isShowing()
+    if not self._widget then return false end
+    local stack = UIManager._window_stack
+    if type(stack) ~= "table" then return false end
+    for _i, win in ipairs(stack) do
+        if win.widget == self._widget then return true end
+    end
+    return false
+end
+
 function Bookshelf:addToMainMenu(menu_items)
-    menu_items.bookshelf = {
-        text         = _("Open Bookshelf"),
-        sorting_hint = "more_tools",
-        callback     = function() self:show() end,
-    }
-    -- Settings entry (replaces the old gear icon in the removed titlebar).
-    menu_items.bookshelf_settings = {
-        text         = _("Bookshelf settings"),
-        sorting_hint = "more_tools",
-        callback     = function() require("settings"):show() end,
+    local outer = self
+    -- Single submenu that bundles the toggle + dismiss + settings, anchored
+    -- to the bookshelf_root slot we registered in _extendMenuOrder. Built
+    -- lazily so the live BookshelfWidget reference + window-stack state is
+    -- current at open time.
+    menu_items.bookshelf_root = {
+        text                = _("Bookshelf"),
+        sub_item_table_func = function()
+            local out = {}
+            local showing = outer:_isShowing()
+            -- Toggle entry: label flips based on whether bookshelf is up.
+            out[#out + 1] = {
+                text     = showing and _("Close Bookshelf") or _("Open Bookshelf"),
+                callback = function()
+                    if outer:_isShowing() then
+                        UIManager:close(outer._widget)
+                    else
+                        outer:show()
+                    end
+                end,
+            }
+            -- Dismiss-without-changing-start_with: useful when Bookshelf is
+            -- the home but the user wants to peek at the underlying FM
+            -- (which a skin plugin like ZenUI/SimpleUI may have decorated).
+            -- Only meaningful when bookshelf is currently up.
+            if showing then
+                out[#out + 1] = {
+                    text     = _("Show file browser"),
+                    callback = function()
+                        if outer._widget then UIManager:close(outer._widget) end
+                        -- Explicitly reactivate FM after the dismiss. Just
+                        -- removing the widget from the stack should be enough
+                        -- but a full UI refresh ensures FM's gesture handlers
+                        -- see themselves as the active surface.
+                        local FileManager = require("apps/filemanager/filemanager")
+                        if FileManager.instance then
+                            UIManager:setDirty(FileManager.instance, "ui")
+                        end
+                    end,
+                    separator = true,
+                }
+            else
+                out[#out].separator = true
+            end
+            for _i, it in ipairs(require("settings"):menuItems(outer._widget)) do
+                out[#out + 1] = it
+            end
+            return out
+        end,
     }
 end
 
