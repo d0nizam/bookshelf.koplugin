@@ -8,9 +8,8 @@
 local InputDialog = require("ui/widget/inputdialog")
 local UIManager   = require("ui/uimanager")
 local Regions     = require("hero_regions")
+local FontList    = require("fontlist")
 local _           = require("bookshelf_i18n").gettext
-local Font     = require("ui/font")
-local FontList = require("fontlist")
 
 -- Cycle helper. Returns the next entry in `list` after `current`, wrapping
 -- around. If current is not found, returns list[1].
@@ -26,21 +25,26 @@ local ALIGN_LABELS = { left = "L", center = "C", right = "R" }
 
 -- showSizeNudge — bookends-style ±1 / ±5 nudge dialog for the font_size
 -- field. Calls on_change(value) on each tap, on_close() when dismissed.
+-- Pattern matches bookends's showNudgeDialog (main.lua:1909): a disabled
+-- text_func button shows the live value, and dialog:reinit() rebuilds
+-- the row so the value updates after every nudge — ButtonDialog has no
+-- public setTitle, so the title stays static.
 local function showSizeNudge(current, default, on_change, on_close)
     local ButtonDialog = require("ui/widget/buttondialog")
     local d
-    local function refresh() d:setTitle(_("Font size") .. ": " .. current) end
     local function nudge(delta)
         current = math.max(8, math.min(48, current + delta))
         on_change(current)
-        refresh()
+        if d then d:reinit() end
     end
     d = ButtonDialog:new{
-        title = _("Font size") .. ": " .. current,
+        title = _("Font size"),
         buttons = {
             {
                 { text = "-5", callback = function() nudge(-5) end },
                 { text = "-1", callback = function() nudge(-1) end },
+                { text_func = function() return tostring(current) .. " px" end,
+                  enabled = false },
                 { text = "+1", callback = function() nudge(1)  end },
                 { text = "+5", callback = function() nudge(5)  end },
             },
@@ -48,7 +52,7 @@ local function showSizeNudge(current, default, on_change, on_close)
                 { text = _("Default"), callback = function()
                     current = default
                     on_change(current)
-                    refresh()
+                    if d then d:reinit() end
                 end },
                 { text = _("Close"), is_enter_default = true,
                   callback = function() UIManager:close(d); on_close() end },
