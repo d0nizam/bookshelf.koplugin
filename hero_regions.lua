@@ -67,7 +67,7 @@ Regions.LABELS = {
 }
 
 local function isRegionKey(key)
-    for _, k in ipairs(Regions.ORDER) do
+    for _i, k in ipairs(Regions.ORDER) do
         if k == key then return true end
     end
     return false
@@ -108,7 +108,7 @@ end
 function Regions.read()
     local raw = readRaw()
     local out = {}
-    for _, key in ipairs(Regions.ORDER) do
+    for _i, key in ipairs(Regions.ORDER) do
         out[key] = resolveOne(key, raw[key])
     end
     return out

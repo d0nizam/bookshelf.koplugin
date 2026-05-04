@@ -75,7 +75,7 @@ local function showFontPicker(current_face, default_face, on_select)
     local Menu   = require("ui/widget/menu")
     local Screen = require("device").screen
     local items  = { { text = _("(Default)"), callback = function() on_select(nil) end } }
-    for _, file in ipairs(FontList:getFontList() or {}) do
+    for _i, file in ipairs(FontList:getFontList() or {}) do
         items[#items + 1] = { text = file, callback = function() on_select(file) end }
     end
     local mw = math.floor(Screen:getWidth() * 0.85)

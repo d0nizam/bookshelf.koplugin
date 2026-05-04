@@ -292,7 +292,7 @@ function Settings:_pickHeroRegion()
     local Regions = require("hero_regions")
     local Screen  = require("device").screen
     local items = {}
-    for _, key in ipairs(Regions.ORDER) do
+    for _i, key in ipairs(Regions.ORDER) do
         items[#items + 1] = {
             text     = _(Regions.LABELS[key] or key),
             callback = function()
