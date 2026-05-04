@@ -16,23 +16,6 @@ local _            = require("bookshelf_i18n").gettext
 
 local Settings = {}
 
--- ─── Helpers ──────────────────────────────────────────────────────────────────
-
-local function readLines()
-    return G_reader_settings:readSetting("bookshelf_hero_lines") or {
-        "[if:page_num]Page %page_num / %page_count[/if]",
-        "[if:book_time_left]%book_time_left LEFT[/if]",
-    }
-end
-
-local function writeLines(lines)
-    G_reader_settings:saveSetting("bookshelf_hero_lines", lines)
-    -- saveSetting is in-memory only; KOReader's flush happens on graceful
-    -- shutdown, which a forced kill / crash misses. Flush eagerly after
-    -- user-paced edits so a subsequent restart can't lose them.
-    G_reader_settings:flush()
-end
-
 -- ─── Toggle helpers ───────────────────────────────────────────────────────────
 
 local function isTrue(key)
@@ -48,52 +31,6 @@ local function checkmark(key)
 end
 
 -- ─── Sub-actions ──────────────────────────────────────────────────────────────
-
--- _editLine(idx, lines, menu_ref)
--- Opens an InputDialog for line `idx`.  When saved, persists lines and chains
--- to the next line editor if idx < 2.  Stores the dialog in a local so the
--- Cancel/Save callbacks can close it without touching Settings state.
-function Settings:_editLine(idx, lines, menu_ref)
-    local dialog  -- forward declaration so callbacks can close it
-
-    dialog = InputDialog:new{
-        title   = string.format(_("Hero card line %d"), idx),
-        input   = lines[idx] or "",
-        buttons = {
-            {
-                {
-                    text     = _("Cancel"),
-                    id       = "close",
-                    callback = function() UIManager:close(dialog) end,
-                },
-                {
-                    text     = _("Tokens\xe2\x80\xa6"),
-                    callback = function() self:_pickToken(dialog) end,
-                },
-                {
-                    text             = _("Save"),
-                    is_enter_default = true,
-                    callback         = function()
-                        local text = dialog:getInputText()
-                        lines[idx] = text or ""
-                        writeLines(lines)
-                        UIManager:close(dialog)
-                        if idx < 2 then
-                            -- Chain to the next line editor.
-                            self:_editLine(idx + 1, lines, menu_ref)
-                        end
-                    end,
-                },
-            },
-        },
-    }
-    UIManager:show(dialog)
-end
-
-function Settings:_editLines(menu_ref)
-    local lines = readLines()
-    self:_editLine(1, lines, menu_ref)
-end
 
 -- Token picker: opens a popout Menu listing the bookshelf-scoped token
 -- catalogue (defined in tokens.lua). Each row inserts its token at the
@@ -350,56 +287,44 @@ function Settings:_pickTokenFallback(dialog)
     UIManager:show(menu, nil, nil, x, y)
 end
 
--- _editClockLine() — single-line bookends-style editor for the clock/battery
--- strip at the top of the hero card. Tokens are the same engine used by hero
--- detail lines; conditionals via [if:foo]…[/if] supported.
-function Settings:_editClockLine()
-    local Tokens  = require("tokens")
-    local current = G_reader_settings:readSetting("bookshelf_clock_line")
-                    or Tokens.DEFAULT_CLOCK_LINE
-    local dialog
-    dialog = InputDialog:new{
-        title       = _("Clock / status line"),
-        description = _("Tokens: %time_12h %time_24h %date %weekday %batt"
-                        .. " %charging %wifi %wifi_icon %light %light_icon"
-                        .. " %warmth %mem %ram %disk_free."
-                        .. " Conditionals: [if:foo]…[/if]."),
-        input       = current,
-        buttons     = {
-            {
-                {
-                    text     = _("Cancel"),
-                    id       = "close",
-                    callback = function() UIManager:close(dialog) end,
-                },
-                {
-                    text     = _("Default"),
-                    callback = function()
-                        -- Populate the field with the canonical default —
-                        -- user can review then tap Save (or edit further)
-                        -- before committing.
-                        dialog:setInputText(Tokens.DEFAULT_CLOCK_LINE)
-                    end,
-                },
-                {
-                    text     = _("Tokens\xe2\x80\xa6"),
-                    callback = function() self:_pickToken(dialog) end,
-                },
-                {
-                    text             = _("Save"),
-                    is_enter_default = true,
-                    callback         = function()
-                        G_reader_settings:saveSetting(
-                            "bookshelf_clock_line",
-                            dialog:getInputText() or "")
-                        G_reader_settings:flush()
-                        UIManager:close(dialog)
-                    end,
-                },
-            },
-        },
+-- _pickHeroRegion() — opens a 5-row modal listing the editable hero regions.
+-- Tapping a row delegates to hero_line_editor for that region.
+function Settings:_pickHeroRegion()
+    local Regions = require("hero_regions")
+    local Screen  = require("device").screen
+    local items = {}
+    for _, key in ipairs(Regions.ORDER) do
+        items[#items + 1] = {
+            text     = _(Regions.LABELS[key] or key),
+            callback = function()
+                if self._region_chooser then
+                    UIManager:close(self._region_chooser)
+                    self._region_chooser = nil
+                end
+                self:_editHeroRegion(key)
+            end,
+        }
+    end
+    local menu_w = math.floor(Screen:getWidth()  * 0.7)
+    local menu_h = math.floor(Screen:getHeight() * 0.5)
+    self._region_chooser = Menu:new{
+        title      = _("Edit hero card"),
+        item_table = items,
+        is_popout  = true,
+        width      = menu_w,
+        height     = menu_h,
     }
-    UIManager:show(dialog)
+    local x = math.floor((Screen:getWidth()  - menu_w) / 2)
+    local y = math.floor((Screen:getHeight() - menu_h) / 2)
+    UIManager:show(self._region_chooser, nil, nil, x, y)
+end
+
+-- _editHeroRegion(key) — open the line editor for a single region. The
+-- editor lives in hero_line_editor; settings just supplies the live
+-- BookshelfWidget handle so the editor can repaint the hero on edits.
+function Settings:_editHeroRegion(key)
+    local LineEditor = require("hero_line_editor")
+    LineEditor.show(key, self._bw, self)
 end
 
 -- Bookends-style nudge dialog for the hero font scale. Each tap on -/+ saves
@@ -515,12 +440,8 @@ function Settings:menuItems(bw)
     if bw then self._bw = bw end
     return {
         {
-            text     = _("Edit hero card lines"),
-            callback = function() self:_editLines() end,
-        },
-        {
-            text     = _("Edit clock / status line"),
-            callback = function() self:_editClockLine() end,
+            text     = _("Edit hero card\xE2\x80\xA6"),  -- ellipsis
+            callback = function() self:_pickHeroRegion() end,
         },
         {
             text     = _("Hero card font scale"),
