@@ -438,7 +438,29 @@ end
 -- Wake-from-sleep also fires backgroundUpdateCheck, mirroring bookends.
 -- The Updater's 1-hour internal cache prevents wake-spam.
 function Bookshelf:onResume()
+    self:_repaintAfterWake()
     self:backgroundUpdateCheck()
+end
+
+-- Some Kindles use a lighter "standby" mode that broadcasts
+-- LeaveStandby instead of Resume on wake. Hook both so the screensaver
+-- pixels can't linger on top of the home regardless of which path the
+-- device took.
+function Bookshelf:onLeaveStandby()
+    self:_repaintAfterWake()
+end
+
+-- After wake, the BookshelfWidget (when it's the visible home) needs an
+-- explicit setDirty — otherwise the screensaver image sits on the
+-- framebuffer until something else triggers a paint. The user's
+-- workaround was opening the FM menu (its close fires its own setDirty
+-- which incidentally repaints us); now we do it ourselves. "full" forces
+-- a panel-wide e-ink refresh which clears any ghost pixels — the right
+-- hammer right after wake when the framebuffer state may be stale.
+function Bookshelf:_repaintAfterWake()
+    if self._widget and self:_isShowing() then
+        UIManager:setDirty(self._widget, "full")
+    end
 end
 
 return Bookshelf
