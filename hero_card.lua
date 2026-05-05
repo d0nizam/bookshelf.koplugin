@@ -387,11 +387,22 @@ function HeroCard:replaceRightColumn(regions, book, state, region_hint)
     local old = self._right_holder[self._right_slot]
     self._right_holder[self._right_slot] = fresh
     if self._right_holder.resetLayout then self._right_holder:resetLayout() end
-    -- Fallback when the status-strip rect wasn't applicable: use the
-    -- whole right column's painted screen rect. Same dimen as the new
-    -- column will occupy — HorizontalGroup's layout doesn't shift on
-    -- slot replacement (right_dimen w/h are unchanged).
-    if not refresh_rect then
+    -- Fallback when the status-strip rect wasn't applicable: refresh
+    -- the FULL right column. We take the painted screen rect from the
+    -- old column for the x/y origin (HorizontalGroup's layout doesn't
+    -- shift on slot replacement, so the new column paints there too)
+    -- but expand w/h to the full right-column bound (self._right_dimen)
+    -- to avoid tearing when the new column is taller than the old one
+    -- — e.g. font-size edits that grow widget heights would otherwise
+    -- leave the bottom strip un-refreshed.
+    if not refresh_rect and old and old.dimen and self._right_dimen then
+        refresh_rect = Geom:new{
+            x = old.dimen.x,
+            y = old.dimen.y,
+            w = self._right_dimen.w,
+            h = self._right_dimen.h,
+        }
+    elseif not refresh_rect then
         refresh_rect = old and old.dimen
     end
     if old and old.free then

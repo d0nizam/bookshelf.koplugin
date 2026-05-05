@@ -306,9 +306,13 @@ function BookshelfWidget:_rebuild()
         breadcrumb_path   = breadcrumb_path,
         chip_pill_label   = CHIP_LABELS[self.chip] or self.chip,
         on_change = function(key)
-            -- Switch chips → reset drill path, preview, page.
+            -- Switch chips → reset drill path and page; preserve
+            -- _preview_book so the user's "current selection" survives
+            -- a tab tour. The highlight on the new chip's shelf only
+            -- paints when the previewed book happens to be visible
+            -- there; the hero still shows the previewed book in any
+            -- case (it's bound to _preview_book, not the chip).
             self._drilldown_path = {}
-            self._preview_book   = nil
             self.chip            = key
             self.page            = 1
             G_reader_settings:saveSetting("bookshelf_active_chip", key)
@@ -1053,6 +1057,18 @@ function BookshelfWidget:onNetworkConnected()
 end
 function BookshelfWidget:onNetworkDisconnected()
     self:_gatedRepaint(WIFI_TOKENS, 0.3)
+end
+-- KOReader broadcasts ToggleNightMode (no-arg toggle) AND SetNightMode
+-- (pass true/false) — both routed to DeviceListener which actually flips
+-- night_mode and dirty-marks "all" widgets. Bookshelf needs its own
+-- repaint after the flip so the %nightmode glyph picks up the new
+-- moon/sun state. Don't return true — we want DeviceListener's handler
+-- to also run.
+function BookshelfWidget:onToggleNightMode()
+    self:_gatedRepaint(NIGHTMODE_TOKENS, 0.3)
+end
+function BookshelfWidget:onSetNightMode()
+    self:_gatedRepaint(NIGHTMODE_TOKENS, 0.3)
 end
 
 -- Sleep / wake hooks: stop the timer entirely on suspend so the device
