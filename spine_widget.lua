@@ -51,13 +51,17 @@ function ShadowRect:paintTo(bb, x, y)
     bb:paintRoundedRect(x, y, self.width, self.height, SHADOW_GRAY, CARD_RADIUS)
 end
 
--- Border-only overlay used as the selected-state cue. Sits behind the cover
--- in an OverlapGroup with dimen matching the cover, but its paintTo draws a
--- thick rounded border at distance `thickness` OUTSIDE the cover's bounds —
--- the cover bitmap is never overwritten. The expanded border footprint
--- intrudes into the slot's right/bottom shadow space and into the
--- inter-slot gap on left/top; both regions are paper-coloured space that
--- the bookshelf's "ui" setDirty refresh will clean on de-selection.
+-- Solid rounded-rect "backdrop" used as the selected-state cue. Sits
+-- BEHIND the cover in an OverlapGroup; paints a filled rounded black
+-- rectangle that extends `thickness` pixels in every direction outside
+-- the cover's bounds. The cover then paints on top with its normal
+-- (untouched) rendering — image, rounded corners, thin border. The
+-- visible "thick border ring" is whatever pixels of this backdrop
+-- aren't overpainted by the cover, framed by the cover's own
+-- consistently-rasterised rounded outer edge. Dual-rasterisation
+-- artefacts (paintBorder's Bresenham inner arc vs the corner mask's
+-- distance test) are avoided because the inner edge of the visible
+-- ring is defined SOLELY by the cover's render path.
 local BorderOverlay = Widget:extend{
     width     = nil,
     height    = nil,
@@ -69,19 +73,11 @@ function BorderOverlay:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
 end
 function BorderOverlay:paintTo(bb, x, y)
-    -- paintBorder draws the border on the OUTERMOST T pixels of the
-    -- given rect (going inward). To get the border drawn entirely
-    -- OUTSIDE (x, y, w, h), expand the rect by T on each side and let
-    -- paintBorder eat the outer T from that bigger rect — the inner
-    -- edge of the border lands exactly at our (x, y, w, h) perimeter.
-    -- Outer corner radius = inner radius + T to keep the visual offset
-    -- consistent around the curve.
     local t = self.thickness
-    bb:paintBorder(x - t, y - t,
-                   self.width + 2 * t, self.height + 2 * t,
-                   t,
-                   self.color or Blitbuffer.COLOR_BLACK,
-                   (self.radius or 0) + t, true)
+    bb:paintRoundedRect(x - t, y - t,
+                        self.width + 2 * t, self.height + 2 * t,
+                        self.color or Blitbuffer.COLOR_BLACK,
+                        (self.radius or 0) + t)
 end
 
 -- A card that paints its inner widget (typically an ImageWidget for the
@@ -302,13 +298,16 @@ function SpineWidget:_renderShadowedCard(inner)
     if self.is_selected then
         return OverlapGroup:new{
             dimen = Geom:new{ w = self.width, h = self.height },
-            inner,
+            -- Backdrop paints first (behind), cover paints on top with
+            -- its untouched rendering. The visible "ring" is the band
+            -- of backdrop pixels that the cover doesn't overpaint.
             BorderOverlay:new{
                 width     = card_w,
                 height    = card_h,
                 thickness = SELECTED_BORDER,
                 radius    = CARD_RADIUS,
             },
+            inner,
         }, card_w, card_h
     end
     local shadow_wrapper = FrameContainer:new{
@@ -432,7 +431,10 @@ function SpineWidget:_renderCover(bb)
         -- at (SHADOW_OFFSET, SHADOW_OFFSET) with the same w/h and same
         -- radius. Pass these so the corner mask can restore shadow grey
         -- where the shadow would otherwise show through. When selected
-        -- there's no shadow, so the BR corner falls back to bg-white.
+        -- the BorderOverlay sits BEHIND the cover and the cover's normal
+        -- bg-white corner mask paints over it (intended — the visible
+        -- ring is only the BorderOverlay's solid fill outside the cover's
+        -- bbox).
         cover_args.shadow_color    = SHADOW_GRAY
         cover_args.shadow_offset_x = SHADOW_OFFSET
         cover_args.shadow_offset_y = SHADOW_OFFSET
