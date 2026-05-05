@@ -56,7 +56,8 @@ Tokens.CATALOGUE = {
     { category = "Device",   token = "%batt_icon",        description = "Battery icon (Nerd Font)" },
     { category = "Device",   token = "%wifi_icon",        description = "Wi-Fi icon" },
     { category = "Device",   token = "%nightmode",        description = "Night mode icon (moon/sun)" },
-    { category = "Device",   token = "%light",            description = "Frontlight intensity" },
+    { category = "Device",   token = "%light",            description = "Frontlight intensity (raw)" },
+    { category = "Device",   token = "%light_pct",        description = "Frontlight intensity (0–100%)" },
     { category = "Device",   token = "%light_icon",       description = "Frontlight icon" },
     { category = "Device",   token = "%warmth",           description = "Warmth value (natural-light only)" },
     { category = "Device",   token = "%mem",              description = "System memory used (%)" },
@@ -255,6 +256,13 @@ end
 -- existing user templates still work.
 Tokens.expanders.charging = function(b, s) return Tokens.expanders.batt_icon(b, s) end
 Tokens.expanders.light = function(_b, s) return s and s.light or "" end
+-- Frontlight intensity normalised to 0–100 via PowerD.fl_max.
+-- Mirrors bookends's %light_pct. Includes the trailing "%" for parity
+-- with %book_pct so users can drop it directly into a template.
+Tokens.expanders.light_pct = function(_b, s)
+    if not s or not s.light_pct then return "" end
+    return tostring(s.light_pct) .. "%"
+end
 Tokens.expanders.warmth= function(_b, s) return s and s.warmth and tostring(s.warmth) or "" end
 Tokens.expanders.mem   = function(_b, s) return s and s.mem and (tostring(s.mem) .. "%") or "" end
 Tokens.expanders.ram   = function(_b, s) return s and s.ram_mib and (tostring(s.ram_mib) .. " MiB") or "" end

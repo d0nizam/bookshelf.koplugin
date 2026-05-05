@@ -151,8 +151,12 @@ end
 -- resolves) so the existing tap pipeline keeps working in both modes.
 
 function ChipStrip:_initBreadcrumb()
-    local face_text  = Font:getFace("infofont", 14)
-    local face_chev  = Font:getFace("infofont", 14)
+    -- Match the chip-label size (16) so the breadcrumb reads as
+    -- continuous with the chip pill rather than a smaller subtitle.
+    -- The crumb is doubling as the heading for the drilled-in view
+    -- (e.g. series title), so a heading-equivalent weight matters.
+    local face_text  = Font:getFace("infofont", 16)
+    local face_chev  = Font:getFace("infofont", 16)
     local pill_w     = math.floor(self.width / 4)  -- match a 4-chip cell width
     local pill       = chipPillFrame(self.chip_pill_label or "", pill_w, self.height)
     self._breadcrumb_zones = {

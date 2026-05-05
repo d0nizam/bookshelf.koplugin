@@ -41,10 +41,20 @@ local ALIGN_LABELS = {
 local function showSizeNudge(current, default, on_change, on_close)
     local ButtonDialog = require("ui/widget/buttondialog")
     local d
+    -- After reinit, dirty-mark the dialog so the e-ink panel refreshes
+    -- its rect on the next paint cycle. Without this, on_change's
+    -- region-scoped setDirty (which targets the hero strip only) leaves
+    -- the dialog's rect untouched and the displayed value stays frozen.
+    local function refresh_dialog()
+        if d then
+            d:reinit()
+            UIManager:setDirty(d, "ui")
+        end
+    end
     local function nudge(delta)
         current = math.max(8, math.min(48, current + delta))
         on_change(current)
-        if d then d:reinit() end
+        refresh_dialog()
     end
     d = ButtonDialog:new{
         title = _("Font size"),
@@ -61,7 +71,7 @@ local function showSizeNudge(current, default, on_change, on_close)
                 { text = _("Default"), callback = function()
                     current = default
                     on_change(current)
-                    if d then d:reinit() end
+                    refresh_dialog()
                 end },
                 { text = _("Close"), is_enter_default = true,
                   callback = function() UIManager:close(d); on_close() end },
@@ -103,8 +113,13 @@ local function showFontPicker(current_face, default_face, on_select)
     if ok_pl and PluginLoader and PluginLoader.enabled_plugins then
         for _i, plugin in ipairs(PluginLoader.enabled_plugins) do
             if plugin.name == "bookends" and type(plugin.showFontPicker) == "function" then
+                -- include_family = false suppresses the "@family:" sentinel
+                -- rows that bookends would otherwise prepend. Newer bookends
+                -- (feature/font-picker-opts → master) honours the option;
+                -- older bookends ignores extra args, in which case safe_select
+                -- catches any "@family:" tap with the toast fallback.
                 local ok = pcall(plugin.showFontPicker, {}, current_face,
-                    safe_select, default_face)
+                    safe_select, default_face, { include_family = false })
                 if ok then return end
                 break -- bookends present but the call failed; fall through to fallback
             end

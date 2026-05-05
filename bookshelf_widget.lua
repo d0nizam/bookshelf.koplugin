@@ -546,11 +546,17 @@ function BookshelfWidget:_buildDeviceState()
         return require("device"):getPowerDevice()
     end)
     local ok_nm, NetMgr = pcall(require, "ui/network/manager")
-    local light, warmth
+    local light, light_pct, warmth
     if ok_pd and PowerD then
         if PowerD.frontlightIntensity then
             local ok, v = pcall(function() return PowerD:frontlightIntensity() end)
             if ok then light = v end
+        end
+        -- Kindle PW5 frontlight maxes out at 24, Kobo varies. Mirror
+        -- bookends's normalisation so users get a familiar 0–100 scale
+        -- via %light_pct (the raw %light is still available).
+        if light and PowerD.fl_max and PowerD.fl_max > 0 then
+            light_pct = math.floor(light / PowerD.fl_max * 100 + 0.5)
         end
         if PowerD.frontlightWarmth then
             local ok, v = pcall(function() return PowerD:frontlightWarmth() end)
@@ -585,6 +591,7 @@ function BookshelfWidget:_buildDeviceState()
         wifi     = (ok_nm and NetMgr and NetMgr.isWifiOn and NetMgr:isWifiOn())
                        and "on" or "off",
         light    = light,
+        light_pct= light_pct,
         warmth   = warmth,
         mem      = mem_pct,
         ram_mib  = ram_mib,
