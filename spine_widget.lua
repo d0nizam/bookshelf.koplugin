@@ -255,6 +255,14 @@ end
 function SpineWidget:_renderShadowedCard(inner)
     local card_w = self.width  - SHADOW_OFFSET
     local card_h = self.height - SHADOW_OFFSET
+    -- Selected state: skip the drop shadow. The thicker border combined
+    -- with no shadow reads as "pressed-in button" — the card has lost
+    -- its lift off the page. The slot's bottom-right SHADOW_OFFSET strip
+    -- stays paper-coloured (no shadow to fill it), which sells the
+    -- pressed-in metaphor.
+    if self.is_selected then
+        return inner, card_w, card_h
+    end
     local shadow_wrapper = FrameContainer:new{
         bordersize   = 0,
         padding      = 0,
