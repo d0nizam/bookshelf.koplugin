@@ -221,10 +221,20 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         end
     end
 
-    -- Progress (bottom-anchored)
+    -- Progress (bottom-anchored). If the book has never been opened
+    -- (book.book_pct nil — note that 0 is *truthy* in Lua so a
+    -- briefly-opened-but-unread book at 0% still keeps its %bar) the
+    -- bar would render at 0% fill, which reads as broken rather than
+    -- meaningful. Strip %bar from the expanded text in that case so the
+    -- region either collapses entirely (default template, leaves only
+    -- whitespace) or reduces to whatever surrounding text the user
+    -- typed.
     if not regions.progress.disabled then
         local progress_text = Tokens.expand(regions.progress.template, book, state)
         progress_text = progress_text:gsub("%[/?[biu]%]", "")
+        if not (book and book.book_pct) then
+            progress_text = progress_text:gsub("%%bar", "")
+        end
         if not Tokens.isEmpty(progress_text) then
             right_bottom[#right_bottom + 1] = buildProgressLine(progress_text, regions.progress, right_w, book)
         end
