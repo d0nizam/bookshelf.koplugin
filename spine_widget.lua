@@ -29,7 +29,12 @@ local Screen          = require("device").screen
 local SHADOW_OFFSET   = Screen:scaleBySize(4)       -- shadow offset in dp
 local CARD_RADIUS     = Screen:scaleBySize(4)       -- rounded corner radius
 local CARD_BORDER     = Screen:scaleBySize(1)       -- 1dp border on the card
-local SELECTED_BORDER = Screen:scaleBySize(3)       -- 3dp thick border when selected
+-- Selected-state border thickness: matches SHADOW_OFFSET so the border's
+-- outer perimeter sits exactly where the unselected-state drop shadow's
+-- outer edge sits. The selected→unselected transition is then just a
+-- colour swap (black border → grey shadow) in the same pixel band, with
+-- no change in the slot's outer footprint.
+local SELECTED_BORDER = SHADOW_OFFSET
 local SHADOW_GRAY     = Blitbuffer.gray(0.55)       -- grey level for the shadow
 
 -- A simple Widget subclass that paints a rounded rectangle in a fixed grey.
