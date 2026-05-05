@@ -189,17 +189,26 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     local right_top    = VerticalGroup:new{ align = "left" }
     local right_bottom = VerticalGroup:new{ align = "left" }
 
-    -- Status (with hairline + small gap below if non-empty)
+    -- Status (with hairline + small gap below if non-empty). Stash the
+    -- three widgets on self so getStatusStripDimen can compute the
+    -- combined screen rect after they've been painted once — used to
+    -- scope the e-ink refresh footprint on minute-tick / frontlight /
+    -- charging / wifi events to just this strip.
+    self._status_strip_widgets = nil
     if not regions.status.disabled then
         local status_text = Tokens.expand(regions.status.template, book, state)
         status_text = status_text:gsub("%[/?[biu]%]", "")
         if not Tokens.isEmpty(status_text) then
-            right_top[#right_top + 1] = buildText(status_text, regions.status, right_w)
-            right_top[#right_top + 1] = LineWidget:new{
+            local status_widget = buildText(status_text, regions.status, right_w)
+            local hairline_widget = LineWidget:new{
                 dimen      = Geom:new{ w = right_w, h = Size.line.medium },
                 background = Blitbuffer.gray(0.4),
             }
-            right_top[#right_top + 1] = VerticalSpan:new{ width = Size.padding.default }
+            local gap_widget = VerticalSpan:new{ width = Size.padding.default }
+            right_top[#right_top + 1] = status_widget
+            right_top[#right_top + 1] = hairline_widget
+            right_top[#right_top + 1] = gap_widget
+            self._status_strip_widgets = { status_widget, hairline_widget, gap_widget }
         end
     end
 
@@ -315,21 +324,65 @@ function HeroCard:_renderFull()
     return hg
 end
 
--- replaceRightColumn(regions) — swaps the right OverlapGroup with a fresh
--- build from the supplied regions table. Returns true on success, false if
--- the holder hasn't been built yet (e.g. empty-state hero).
-function HeroCard:replaceRightColumn(regions, book, state)
+-- getStatusStripDimen() — returns the combined screen rect of the status
+-- text + hairline + gap (the top strip of the right column), or nil if
+-- status is empty/disabled or the strip hasn't been painted yet. Used by
+-- the BookshelfWidget's status-tick + state-event refreshes to scope the
+-- e-ink panel update to the strip rather than the whole right column.
+function HeroCard:getStatusStripDimen()
+    local s = self._status_strip_widgets
+    if not s or not s[1] or not s[1].dimen then return nil end
+    local status, hairline, gap = s[1], s[2], s[3]
+    local h = status.dimen.h
+    if hairline and hairline.dimen then h = h + hairline.dimen.h end
+    if gap      and gap.dimen      then h = h + gap.dimen.h      end
+    return Geom:new{
+        x = status.dimen.x,
+        y = status.dimen.y,
+        w = status.dimen.w,
+        h = h,
+    }
+end
+
+-- replaceRightColumn(regions, book, state, region_hint)
+--   Swaps the right OverlapGroup with a fresh build from the supplied
+--   regions table. Returns (ok, refresh_rect):
+--     ok  — true on success, false when the holder hasn't been built yet
+--           (empty-state hero).
+--     refresh_rect — Geom in screen coordinates of the area that actually
+--           needs panel refresh. Caller passes this to setDirty so the
+--           e-ink update is bounded:
+--             * region_hint == "status"  → just the status strip rect;
+--             * any other hint / nil      → the whole right column rect;
+--             * may itself be nil on the very first swap (before any
+--               paint has populated dimens) — caller falls back to a
+--               full-widget setDirty in that case.
+--   region_hint must be captured BEFORE the swap because afterwards
+--   self._status_strip_widgets points at the new (un-painted) widgets
+--   whose dimens aren't set yet.
+function HeroCard:replaceRightColumn(regions, book, state, region_hint)
     if not self._right_holder or not self._right_dimen then return false end
+    local refresh_rect
+    if region_hint == "status" then
+        refresh_rect = self:getStatusStripDimen()
+    end
     local fresh = self:_buildRightColumn(book or self.book, regions,
         state or self.device_state, self._right_dimen)
     local old = self._right_holder[self._right_slot]
     self._right_holder[self._right_slot] = fresh
     if self._right_holder.resetLayout then self._right_holder:resetLayout() end
+    -- Fallback when the status-strip rect wasn't applicable: use the
+    -- whole right column's painted screen rect. Same dimen as the new
+    -- column will occupy — HorizontalGroup's layout doesn't shift on
+    -- slot replacement (right_dimen w/h are unchanged).
+    if not refresh_rect then
+        refresh_rect = old and old.dimen
+    end
     if old and old.free then
         local UIManager = require("ui/uimanager")
         UIManager:nextTick(function() pcall(function() old:free() end) end)
     end
-    return true
+    return true, refresh_rect
 end
 
 function HeroCard:onTap()  if self.on_tap  then self.on_tap(self.book)  end; return true end

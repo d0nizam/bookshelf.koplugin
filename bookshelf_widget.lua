@@ -779,7 +779,13 @@ end
 -- right OverlapGroup of the current HeroCard from the supplied regions
 -- table (so we don't pay the cover BIM re-fetch on every keystroke).
 -- Returns true if the swap happened, false if the live tree isn't there.
-function BookshelfWidget:_swapHeroRightColumnInPlace(regions)
+-- _swapHeroRightColumnInPlace(regions, region_hint)
+-- region_hint (optional): "status" scopes the panel refresh to the
+-- status strip only — used by the minute-tick + frontlight / charging /
+-- wifi event paths so a clock update doesn't refresh the entire right
+-- column. nil = whole right column (line-editor live preview, where any
+-- region might have changed).
+function BookshelfWidget:_swapHeroRightColumnInPlace(regions, region_hint)
     if not self._hero_parent then return false end
     local hero = self._hero_parent[1]
     if not hero or not hero.replaceRightColumn then return false end
@@ -787,14 +793,20 @@ function BookshelfWidget:_swapHeroRightColumnInPlace(regions)
     if current and Repo.enrichStats then
         Repo.enrichStats(current)
     end
-    local ok = hero:replaceRightColumn(regions, current, self:_buildDeviceState())
+    local ok, rect = hero:replaceRightColumn(regions, current,
+        self:_buildDeviceState(), region_hint)
     -- "ui" rather than "fast": the size-nudge dialog (and any other style
     -- adjuster) sits OVER bookshelf, and a "fast" panel refresh is 1-bit
     -- monochrome — it strips greyscale across the whole screen including
     -- the dialog itself, until the next non-fast paint. "ui" is partial
     -- but greyscale-preserving; the small flicker per keystroke is a
     -- better trade than the dialog turning black-and-white.
-    if ok then UIManager:setDirty(self, "ui") end
+    --
+    -- Scoping setDirty to `rect` (when available) limits the e-ink panel
+    -- update to the area that actually changed — for a clock tick that's
+    -- ~30dp tall instead of the whole right column, so any overlay
+    -- happens to be unaffected by the refresh entirely.
+    if ok then UIManager:setDirty(self, "ui", rect) end
     return ok
 end
 
@@ -921,7 +933,11 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
                 and self._hero_parent[1].replaceRightColumn) then return end
         if not self:_anyActiveRegionUses(tokens) then return end
         local Regions = require("hero_regions")
-        self:_swapHeroRightColumnInPlace(Regions.read())
+        -- Every gated repaint here is driven by status-line state
+        -- (clock tick / battery / wifi / brightness / nightmode) so the
+        -- "status" hint scopes the panel refresh to just the status
+        -- strip rather than the whole right column.
+        self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end
     if debounce and debounce > 0 then
         if self._gated_repaint_pending then
@@ -998,15 +1014,14 @@ end
 function BookshelfWidget:onResume()
     self:_startStatusTimer()
     -- Repaint immediately so post-wake clock + batt + wifi state shows
-    -- without waiting for the next minute boundary. We pass an empty
-    -- table to _gatedRepaint to bypass the gate — wake-time state
-    -- catch-up should always paint regardless of token usage.
+    -- without waiting for the next minute boundary. Hint "status" so
+    -- the panel refresh stays scoped to the status strip.
     if UIManager:getTopmostVisibleWidget() == self
             and self._hero_parent
             and self._hero_parent[1]
             and self._hero_parent[1].replaceRightColumn then
         local Regions = require("hero_regions")
-        self:_swapHeroRightColumnInPlace(Regions.read())
+        self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end
 end
 
