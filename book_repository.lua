@@ -278,20 +278,41 @@ end
 -- file's mtime as a fallback so newly-added unread series still surface.
 -- Books without a series_name are excluded.
 
+-- Hydrate a cached series shape into a renderable group: rebuild every
+-- Book record fresh via buildBookMeta. A previous version of the cache
+-- stashed Book objects directly, but their cover_bb fields are owned by
+-- ImageWidget and freed after each paint — reusing cached Books segv'd
+-- on subsequent renders ("cover image corruption / crash going back out
+-- of a series"). Caching the shape (filepath list + sort metadata) and
+-- rebuilding Books on read keeps the cover_bb lifetime safe while still
+-- skipping the lfs walk + the sort/group pass.
+local function hydrateSeriesShape(shape)
+    local books = {}
+    for _, fp in ipairs(shape.filepaths) do
+        local b = Repo.buildBookMeta(fp)
+        if b then books[#books + 1] = b end
+    end
+    return {
+        series_name = shape.series_name,
+        books       = books,
+        latest      = shape.latest,
+    }
+end
+
 function Repo.getSeriesGroups(limit)
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
 
-    -- Cached fast path: BIM lookups for every candidate are the dominant
-    -- cost on this chip for medium-to-large libraries. We slice from the
-    -- cached full list so callers using different `limit` values still
-    -- hit the cache.
+    -- Cache fast path: filepaths + sort metadata are stable across
+    -- renders; Books get rehydrated each read so cover_bbs are fresh.
     local cached = _series_cache[key]
     if cached and cached.expires_at > now then
         local out = {}
-        for i = 1, math.min(limit or 4, #cached.groups) do out[i] = cached.groups[i] end
+        for i = 1, math.min(limit or 4, #cached.groups) do
+            out[i] = hydrateSeriesShape(cached.groups[i])
+        end
         return out
     end
 
@@ -345,9 +366,20 @@ function Repo.getSeriesGroups(limit)
         end)
     end
 
-    -- Stash the full list pre-slice so calls with different limits all
-    -- benefit from the cache.
-    _series_cache[key] = { groups = list, expires_at = now + SERIES_CACHE_TTL }
+    -- Stash the SHAPE (filepaths + sort metadata) — never the Book
+    -- records themselves. That avoids the use-after-free on the
+    -- ImageWidget-owned cover_bbs that books carry.
+    local shapes = {}
+    for _, group in ipairs(list) do
+        local fps = {}
+        for _, b in ipairs(group.books) do fps[#fps + 1] = b.filepath end
+        shapes[#shapes + 1] = {
+            series_name = group.series_name,
+            filepaths   = fps,
+            latest      = group.latest,
+        }
+    end
+    _series_cache[key] = { groups = shapes, expires_at = now + SERIES_CACHE_TTL }
 
     local out = {}
     for i = 1, math.min(limit or 4, #list) do out[i] = list[i] end
