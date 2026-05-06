@@ -450,74 +450,123 @@ function SpineWidget:_renderCover(bb)
 end
 
 function SpineWidget:_renderFallback()
-    local TextBoxWidget = require("ui/widget/textboxwidget")
-    local VerticalGroup = require("ui/widget/verticalgroup")
-    local Font          = require("ui/font")
+    local TextBoxWidget   = require("ui/widget/textboxwidget")
+    local TextWidget      = require("ui/widget/textwidget")
+    local VerticalGroup   = require("ui/widget/verticalgroup")
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    local VerticalSpan    = require("ui/widget/verticalspan")
+    local LineWidget      = require("ui/widget/linewidget")
+    local Font            = require("ui/font")
 
-    local card_w   = self.width  - SHADOW_OFFSET
-    local card_h   = self.height - SHADOW_OFFSET
-    local text_pad = Size.padding.large
-    -- The inner-card border eats CARD_BORDER pixels on each side; white bar
-    -- width matches the visible interior so it stops at the rounded edge.
-    local bar_w    = card_w - CARD_BORDER * 2
+    local card_w = self.width  - SHADOW_OFFSET
+    local card_h = self.height - SHADOW_OFFSET
+    local border = CARD_BORDER
 
-    local v_pad = Size.padding.default
-    -- Cap the title's wrapped height to roughly half the card and the
-    -- author's to roughly a third — at extreme DPI / font scale these
-    -- TextBoxWidgets would otherwise wrap to many lines and overflow
-    -- the card vertically (the enclosing CenterContainer doesn't clip).
-    -- height_overflow_show_ellipsis truncates with "…" at the cap.
-    local title_max_h  = math.max(Screen:scaleBySize(20), math.floor(card_h * 0.45))
-    local author_max_h = math.max(Screen:scaleBySize(14), math.floor(card_h * 0.30))
-    local function whiteBar(text, face, bold, max_h)
-        local box = TextBoxWidget:new{
-            text                          = text,
-            face                          = face,
-            width                         = bar_w - text_pad * 2,
-            alignment                     = "center",
-            bold                          = bold,
-            height                        = max_h,
-            height_overflow_show_ellipsis = true,
-        }
-        return FrameContainer:new{
-            bordersize     = 0,
-            background     = Blitbuffer.COLOR_WHITE,
-            padding        = 0,
-            padding_left   = text_pad,
-            padding_right  = text_pad,
-            padding_top    = v_pad,
-            padding_bottom = v_pad,
-            box,
-        }
-    end
+    -- Vintage-cover layout. Outer card paints a paper-tone background +
+    -- thin border (matches the cover-render path so adjacent shelves
+    -- stay consistent). An INNER frame inset by inset_h × inset_v
+    -- adds a second thin border with a near-white fill — that double-
+    -- frame is the "ornate" detail on its own. Inside the inner frame:
+    -- title + decorative rule (two short lines flanking a centred ❖
+    -- glyph) + author. Each text region caps at a fraction of card_h
+    -- so a long title doesn't push the author off the bottom at small
+    -- slot sizes.
+    local inset_h    = math.max(Screen:scaleBySize(6), math.floor(card_w * 0.06))
+    local inset_v    = math.max(Screen:scaleBySize(8), math.floor(card_h * 0.06))
+    local outer_inset_w = card_w - inset_h * 2
+    local outer_inset_h = card_h - inset_v * 2
+    local content_pad   = math.max(Screen:scaleBySize(4), math.floor(card_w * 0.04))
+    local content_w     = outer_inset_w - border * 2 - content_pad * 2
 
-    local title  = whiteBar(self.book and self.book.title or "?",
-                            Font:getFace("infofont", 12), true, title_max_h)
-    local author = whiteBar(self.book and self.book.author or "",
-                            Font:getFace("infofont", 10), false, author_max_h)
+    -- Title text: cap height so a 4-line title still leaves room for
+    -- the rule + author below.
+    local title_text  = (self.book and self.book.title) or "?"
+    local author_text = (self.book and self.book.author) or ""
 
-    local stack = VerticalGroup:new{
-        align = "center",
-        title,
-        author,
+    local title_max_h  = math.max(Screen:scaleBySize(20), math.floor(card_h * 0.40))
+    local title = TextBoxWidget:new{
+        text                          = title_text,
+        face                          = Font:getFace("infofont", 13),
+        bold                          = true,
+        fgcolor                       = Blitbuffer.COLOR_BLACK,
+        width                         = content_w,
+        alignment                     = "center",
+        height                        = title_max_h,
+        height_overflow_show_ellipsis = true,
     }
 
-    -- Paper-tone card: faint grey fill so the fallback reads as a card against
-    -- the white page. The inner CenterContainer is sized to (card_w − 2*border,
-    -- card_h − 2*border) so the FrameContainer's outer size stays exactly at
-    -- card_w × card_h (matches the cover render path).
-    local border = CARD_BORDER
+    -- Decorative rule: ─ ❖ ─ centred. Two short black lines flanking
+    -- a glyph; line width sized so they read as filigree, not a
+    -- divider line. ❖ (BLACK DIAMOND MINUS WHITE X, U+2756) renders
+    -- in the bundled infofont.
+    local rule_line_w = math.max(Screen:scaleBySize(10), math.floor(content_w * 0.20))
+    local rule_h      = math.max(1, Size.border.thin)
+    local function ruleLine()
+        return LineWidget:new{
+            background = Blitbuffer.COLOR_BLACK,
+            dimen      = Geom:new{ w = rule_line_w, h = rule_h },
+        }
+    end
+    local rule_gap = HorizontalSpan:new{ width = Size.padding.small }
+    local rule_centerer = CenterContainer:new{
+        dimen = Geom:new{ w = content_w, h = math.max(Screen:scaleBySize(20), card_h * 0.10) },
+        HorizontalGroup:new{
+            align = "center",
+            ruleLine(),
+            rule_gap,
+            TextWidget:new{
+                text    = "\xE2\x9D\x96",  -- ❖ U+2756
+                face    = Font:getFace("infofont", 12),
+                fgcolor = Blitbuffer.COLOR_BLACK,
+            },
+            HorizontalSpan:new{ width = Size.padding.small },
+            ruleLine(),
+        },
+    }
+
+    -- Author region only renders if there's actually a name to show;
+    -- skipping it lets the title centre vertically when alone.
+    local stack_children = { align = "center", title, rule_centerer }
+    if author_text ~= "" then
+        local author_max_h = math.max(Screen:scaleBySize(14), math.floor(card_h * 0.20))
+        local author = TextBoxWidget:new{
+            text                          = author_text,
+            face                          = Font:getFace("infofont", 10),
+            fgcolor                       = Blitbuffer.COLOR_BLACK,
+            width                         = content_w,
+            alignment                     = "center",
+            height                        = author_max_h,
+            height_overflow_show_ellipsis = true,
+        }
+        stack_children[#stack_children + 1] = author
+    end
+    local stack = VerticalGroup:new(stack_children)
+
+    -- Inner frame: thin border around a near-white inner fill. The
+    -- second border is what makes it read as "ornate" vs a plain card.
+    local inner_frame = FrameContainer:new{
+        bordersize = Size.border.thin,
+        background = Blitbuffer.COLOR_WHITE,
+        padding    = content_pad,
+        CenterContainer:new{
+            dimen = Geom:new{
+                w = content_w,
+                h = outer_inset_h - border * 2 - content_pad * 2,
+            },
+            stack,
+        },
+    }
+
+    -- Outer card: paper-tone background, rounded corners, thin border.
     local card = FrameContainer:new{
         bordersize = border,
         radius     = CARD_RADIUS,
         padding    = 0,
-        background = Blitbuffer.gray(0.07),
+        background = Blitbuffer.gray(0.08),
         CenterContainer:new{
-            dimen = Geom:new{
-                w = card_w - border * 2,
-                h = card_h - border * 2,
-            },
-            stack,
+            dimen = Geom:new{ w = card_w - border * 2, h = card_h - border * 2 },
+            inner_frame,
         },
     }
     return (self:_renderShadowedCard(card))
