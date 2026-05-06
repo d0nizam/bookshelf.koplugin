@@ -54,6 +54,12 @@ function Bookshelf:init()
     -- Patch the start_with menu so users can pick Bookshelf as their home.
     self:_registerStartWithMenu()
 
+    -- Beta: wrap FileChooser:refreshPath so changing KOReader's collate /
+    -- reverse / mixed / show-filter settings auto-refreshes Bookshelf
+    -- without the user having to swipe-away-and-back. No-op until the
+    -- "Auto-refresh on sort change" beta toggle is enabled.
+    self:_installSortRefreshHook()
+
     -- Add bookshelf anchors to the FM menu_order so our entries don't get
     -- the "NEW:" prefix MenuSorter applies to anything orphan-positioned.
     self:_extendMenuOrder()
@@ -166,6 +172,69 @@ function Bookshelf:_registerStartWithMenu()
         return result
     end
 
+end
+
+-- ---------------------------------------------------------------------------
+-- Auto-refresh on sort change (beta)
+-- ---------------------------------------------------------------------------
+
+-- The FM "Sort by" / "Reverse sorting" / "Folders and files mixed" / book-
+-- status filter menu callbacks all converge on FileChooser:refreshPath. They
+-- don't broadcast an event — they just re-render the FileManager's own list.
+-- Bookshelf is layered above FM, so without this hook a sort change goes
+-- unnoticed until the user triggers a _rebuild some other way (chip switch).
+--
+-- We wrap refreshPath once at class level. The wrapper:
+--   1. Calls the original (so FM's list still updates correctly).
+--   2. Bails when the beta toggle is off.
+--   3. Bails when no live BookshelfWidget exists in the window stack.
+--   4. Compares the cached sort fingerprint against the current settings;
+--      only rebuilds on actual change. The fingerprint is captured at the
+--      end of every BookshelfWidget:_rebuild, so it always reflects what's
+--      currently painted — eliminating the seed-on-first-fire dance.
+-- The rebuild itself is queued via UIManager:nextTick so it runs after the
+-- current event handler returns. The FM menu typically stays open after a
+-- sort callback (radio items keep_menu_open implicitly via checked_func), so
+-- the rebuild paints under the menu and the new ordering is already visible
+-- when the user dismisses it.
+function Bookshelf:_installSortRefreshHook()
+    local ok, FileChooser = pcall(require, "ui/widget/filechooser")
+    if not ok or not FileChooser then return end
+    if FileChooser._bookshelf_sort_refresh_patched then return end
+    FileChooser._bookshelf_sort_refresh_patched = true
+
+    local BookshelfWidget = require("bookshelf_widget")
+    local orig = FileChooser.refreshPath
+    FileChooser.refreshPath = function(self_fc, ...)
+        local r = orig(self_fc, ...)
+        if not (G_reader_settings:readSetting("bookshelf_auto_refresh_on_sort") == true) then
+            return r
+        end
+        local widget = BookshelfWidget.live
+        if not widget then return r end
+        -- Walk the window stack: the bookshelf is in-stack but typically not
+        -- topmost when the FM menu is open above it. We want to rebuild even
+        -- so, so the user sees fresh order on menu dismiss.
+        local in_stack = false
+        local stack = UIManager._window_stack
+        if type(stack) == "table" then
+            for _i, win in ipairs(stack) do
+                if win.widget == widget then in_stack = true; break end
+            end
+        end
+        if not in_stack then return r end
+        local fp = BookshelfWidget._computeSortFingerprint()
+        if widget._sort_fingerprint == fp then return r end
+        UIManager:nextTick(function()
+            -- Re-check liveness: widget may have closed, or another
+            -- refreshPath may have already raced in a rebuild.
+            if BookshelfWidget.live ~= widget then return end
+            if widget._sort_fingerprint == fp then return end
+            widget:_rebuild()
+            UIManager:setDirty(widget, "ui")
+        end)
+        return r
+    end
 end
 
 -- ---------------------------------------------------------------------------

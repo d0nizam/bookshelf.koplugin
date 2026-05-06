@@ -600,6 +600,24 @@ function Settings:_betaSubItems()
                 end
             end,
         },
+        {
+            text = _("Auto-refresh on sort change"),
+            help_text = _("When you change KOReader's Sort by / Reverse "
+                .. "sorting / Folders and files mixed / Filter book "
+                .. "status options, refresh Bookshelf's home view "
+                .. "immediately. By default the new order only shows "
+                .. "after switching tabs. Hooks FileChooser:refreshPath "
+                .. "globally — disable if it conflicts with other plugins."),
+            checked_func = function()
+                return G_reader_settings:readSetting("bookshelf_auto_refresh_on_sort") == true
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = G_reader_settings:readSetting("bookshelf_auto_refresh_on_sort") == true
+                G_reader_settings:saveSetting("bookshelf_auto_refresh_on_sort", not enabled)
+                G_reader_settings:flush()
+            end,
+        },
     }
 end
 

@@ -64,12 +64,41 @@ function BookshelfWidget._coverNeedsResize(info, specs)
     return info.cover_w < target_w * 0.8 or info.cover_h < target_h * 0.8
 end
 
+-- _computeSortFingerprint() — string repr of the four KOReader settings that
+-- determine the "All" chip's listing order. Stored on the widget after each
+-- _rebuild so main.lua's FileChooser:refreshPath wrapper (auto-refresh-on-sort
+-- beta) can detect a real change vs spurious refreshPath fires.
+function BookshelfWidget._computeSortFingerprint()
+    local rs = G_reader_settings
+    local filter = rs:readSetting("show_filter") or {}
+    local status = filter.status
+    local status_keys = ""
+    if type(status) == "table" then
+        local keys = {}
+        for k, v in pairs(status) do
+            if v then keys[#keys + 1] = tostring(k) end
+        end
+        table.sort(keys)
+        status_keys = table.concat(keys, ",")
+    end
+    return table.concat({
+        rs:readSetting("collate") or "",
+        tostring(rs:readSetting("reverse_collate") and true or false),
+        tostring(rs:readSetting("collate_mixed") and true or false),
+        status_keys,
+    }, "|")
+end
+
 function BookshelfWidget:init()
     self.width  = Screen:getWidth()
     self.height = Screen:getHeight()
     self.dimen  = Geom:new{ w = self.width, h = self.height }
     self.chip   = G_reader_settings:readSetting("bookshelf_active_chip") or "recent"
     self.page   = 1   -- 1-based; 8 books per page (4 cols × 2 shelves)
+    -- Class-level pointer to the live instance. Lets main.lua's
+    -- FileChooser:refreshPath wrapper find us without depending on which
+    -- plugin context (FM vs Reader) installed the wrapper.
+    BookshelfWidget.live = self
 
     -- Page-flipping swipe gestures (anywhere on the home screen): west = next
     -- page, east = previous page. Bound to a wide screen-zone so users can
@@ -518,6 +547,7 @@ function BookshelfWidget:_rebuild()
             height     = self.height,
             empty_vgroup,
         }
+        self._sort_fingerprint = BookshelfWidget._computeSortFingerprint()
         return
     end
 
@@ -618,6 +648,7 @@ function BookshelfWidget:_rebuild()
             inner_content,
         },
     }
+    self._sort_fingerprint = BookshelfWidget._computeSortFingerprint()
 end
 
 -- ─── Background metadata extraction ──────────────────────────────────────────
@@ -1262,6 +1293,7 @@ end
 -- callback in show().
 function BookshelfWidget:onCloseWidget()
     self:_stopStatusTimer()
+    if BookshelfWidget.live == self then BookshelfWidget.live = nil end
     if self._on_close_callback then self._on_close_callback() end
 end
 
