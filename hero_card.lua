@@ -149,22 +149,16 @@ local function buildProgressLine(expanded, region, width, book)
         used_w = used_w + a_widget:getSize().w
     end
 
-    -- Bar height: percentage of the *rendered* text height. Probe a
-    -- TextWidget with a single space using the region's face to get the
-    -- actual line height (which already accounts for the font scale via
-    -- regionFace), then scale by region.bar_height (default 100 = matches
-    -- text exactly). The earlier approach used region.font_size as a px
-    -- baseline, but font_size is the nominal pt size, not the rendered
-    -- height — at high DPI a 14pt font renders to ~22-26px, and a "14"
-    -- bar_height looked half the height of the digits next to it. Using
-    -- the rendered height means a 100% bar is text-height regardless of
-    -- DPI, and the percentage slider lets the user dial in slimmer or
-    -- thicker without losing the text-relative proportions.
-    local probe   = TextWidget:new{ text = " ", face = face, bold = region.bold or false }
-    local text_h  = probe:getSize().h
-    probe:free()
-    local bar_pct = region.bar_height or 100
-    local bar_h   = math.max(2, math.floor(text_h * bar_pct / 100 + 0.5))
+    -- Bar height: percentage of the face's nominal point size. The earlier
+    -- probe-via-getSize().h approach measured the FULL line height (height
+    -- + leading + descender), so 100% rendered ~2x taller than the visible
+    -- glyphs — user reported 50% looked right, which is roughly the cap
+    -- height. Using face.size directly gives the cap-height-ish baseline
+    -- the user expects, matching how bookends sizes its own bars. region.
+    -- bar_height (default 100 = match text) scales from there.
+    local face_size = face.size or region.font_size or 14
+    local bar_pct   = region.bar_height or 100
+    local bar_h     = math.max(2, math.floor(face_size * bar_pct / 100 + 0.5))
     -- Boundary gap: padding.small only kicks in when the user has NOT
     -- typed any whitespace at that boundary. With a typed space (or
     -- two), the rendered TextWidget already contains those pixels and

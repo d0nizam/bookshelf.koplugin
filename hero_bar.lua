@@ -35,8 +35,11 @@ end
 
 -- Style sets exposed in the line editor's bar-style cycle button. The
 -- bookends list is a superset; the fallback keeps it to two real styles.
+-- Radial / radial_hollow are deliberately excluded — bookshelf's hero
+-- progress bar is a horizontal-strip context where a circle dial reads
+-- as out-of-place; bookends still has them for its own status-line use.
 HeroBar.BOOKENDS_STYLES = {
-    "bordered", "solid", "rounded", "metro", "wavy", "radial", "radial_hollow",
+    "bordered", "solid", "rounded", "metro", "wavy",
 }
 HeroBar.FALLBACK_STYLES = { "bordered", "solid" }
 

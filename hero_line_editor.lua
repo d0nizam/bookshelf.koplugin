@@ -9,6 +9,7 @@ local InputDialog = require("ui/widget/inputdialog")
 local UIManager   = require("ui/uimanager")
 local Regions     = require("hero_regions")
 local FontList    = require("fontlist")
+local Screen      = require("device").screen
 local _           = require("bookshelf_i18n").gettext
 
 -- Cycle helper. Returns the next entry in `list` after `current`, wrapping
@@ -454,6 +455,13 @@ function LineEditor.show(region_key, bw, settings_module, touchmenu_instance)
         title           = _(Regions.LABELS[region_key] or region_key),
         input           = draft.template,
         allow_newline   = true,
+        -- Reserve roughly two lines of space for the input area. Templates
+        -- like the default subtitle (with a long [if:series]…[/if] block)
+        -- often run past one line, and the auto-fit single-line layout
+        -- forces the user to horizontal-scroll while editing — frustrating
+        -- on a touch keyboard. Two lines tall by default; the dialog still
+        -- expands further if the input wraps to more lines.
+        text_height     = Screen:scaleBySize(60),
         edited_callback = function()
             -- Fires DURING InputDialog:init (initTextBox calls edit_callback
             -- before InputDialog:new returns), so `dialog` upvalue is still
