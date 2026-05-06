@@ -374,7 +374,8 @@ end
 -- this menu can never lock the user out.
 function Settings:_chipsSubItems()
     local CHIP_ORDER  = {
-        "all", "recent", "latest", "series", "authors", "genres", "favorites",
+        "all", "recent", "latest", "series", "authors", "genres",
+        "tags", "favorites",
     }
     local CHIP_LABELS = {
         all       = _("Home"),
@@ -383,6 +384,7 @@ function Settings:_chipsSubItems()
         series    = _("Series"),
         authors   = _("Authors"),
         genres    = _("Genres"),
+        tags      = _("Tags"),
         favorites = _("Favourites"),
     }
     local items = {}

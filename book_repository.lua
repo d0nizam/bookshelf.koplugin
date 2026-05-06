@@ -392,6 +392,56 @@ function Repo.getFavorites(limit)
     return out
 end
 
+-- ─── getTags ─────────────────────────────────────────────────────────────────
+-- Returns up to `limit` tag groups derived from KOReader's ReadCollection.
+-- Skips the built-in "favorites" collection (it has its own chip). Groups
+-- are { kind = "tag", series_name = collection_name, books = [...],
+-- latest = max(item.attr.access) } so they flow through the same
+-- SeriesStack widget + drill-down path as Series / Authors / Genres.
+--
+-- No shape cache here (unlike getSeriesGroups / getAuthors / getGenres):
+-- ReadCollection state changes via user actions (Add to collection /
+-- Remove) don't fire our walk-cache invalidation, so a TTL'd cache could
+-- show stale collection contents. Per-collection book counts are usually
+-- small, so the per-render rebuild cost is dominated by buildBookMeta
+-- (a SQLite lookup per book) — acceptable.
+
+function Repo.getTags(limit)
+    local rc = getCollections()
+    if not rc.coll then return {} end
+    local groups = {}
+    for coll_name, files in pairs(rc.coll) do
+        if coll_name ~= "favorites" then
+            local books  = {}
+            local latest = 0
+            for _file, item in pairs(files) do
+                local book = Repo.buildBookMeta(item.file or _file)
+                if book then
+                    books[#books + 1] = book
+                    local t = (item.attr and item.attr.access) or 0
+                    if t > latest then latest = t end
+                end
+            end
+            if #books > 0 then
+                table.sort(books, function(a, b)
+                    return (a.title or "") < (b.title or "")
+                end)
+                groups[#groups + 1] = {
+                    kind        = "tag",
+                    series_name = coll_name,
+                    books       = books,
+                    latest      = latest,
+                }
+            end
+        end
+    end
+    table.sort(groups, function(a, b) return a.latest > b.latest end)
+    if limit and #groups > limit then
+        for i = limit + 1, #groups do groups[i] = nil end
+    end
+    return groups
+end
+
 -- ─── getSeriesGroups ─────────────────────────────────────────────────────────
 -- Returns up to `limit` series groups derived from a filesystem walk of the
 -- user's library (so unread books in a series still show up, not only ones

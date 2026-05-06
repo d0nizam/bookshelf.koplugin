@@ -225,13 +225,14 @@ function BookshelfWidget:_rebuild()
     local CHIP_LABELS = {
         all = "Home", recent = "Recent", latest = "Latest",
         series = "Series", authors = "Authors", genres = "Genres",
-        favorites = "Favourites",
+        tags = "Tags", favorites = "Favourites",
     }
     -- "All" leads (folder-aware browse rooted at home_dir, honours the
     -- user's KOReader collate / reverse / mixed / book-status-filter
     -- settings via FileChooser:genItemTableFromPath).
     local CHIP_ORDER = {
-        "all", "recent", "latest", "series", "authors", "genres", "favorites",
+        "all", "recent", "latest", "series", "authors", "genres",
+        "tags", "favorites",
     }
     local disabled_set = G_reader_settings:readSetting("bookshelf_chips_disabled") or {}
     local active_chips = {}
@@ -411,6 +412,8 @@ function BookshelfWidget:_rebuild()
             placeholder_text = _("No authors yet · Add author metadata to your books and they will appear here")
         elseif self.chip == "genres" then
             placeholder_text = _("No genres yet · Add keywords or subject metadata to your books and they will appear here")
+        elseif self.chip == "tags" then
+            placeholder_text = _("No tags yet · Long-press a book and tap 'Add to collection' to create one")
         elseif self.chip == "favorites" then
             placeholder_text = _("No favourites yet · Long-press a book and tap 'Add to favourites'")
         elseif self.chip == "latest" then
@@ -709,11 +712,11 @@ function BookshelfWidget:_fetchChipItems(n)
     -- on the shelf path), and reusing them would dereference freed
     -- memory and SEGV.
     local tip = self._drilldown_path[#self._drilldown_path]
-    -- Drill into a group (series / author / genre): payload.books already
-    -- carries Book records, but their cover_bbs may have been freed by a
-    -- prior render. Rebuild meta-only from filepath to refresh.
+    -- Drill into a group (series / author / genre / tag): payload.books
+    -- already carries Book records, but their cover_bbs may have been
+    -- freed by a prior render. Rebuild meta-only from filepath to refresh.
     if tip and (tip.kind == "series" or tip.kind == "author"
-            or tip.kind == "genre") then
+            or tip.kind == "genre" or tip.kind == "tag") then
         local fresh = {}
         for _, b in ipairs(tip.payload.books) do
             local nb = b.filepath and Repo.buildBookMeta(b.filepath) or b
@@ -730,6 +733,7 @@ function BookshelfWidget:_fetchChipItems(n)
     if self.chip == "series"    then return Repo.getSeriesGroups(n) end
     if self.chip == "authors"   then return Repo.getAuthors(n)      end
     if self.chip == "genres"    then return Repo.getGenres(n)       end
+    if self.chip == "tags"      then return Repo.getTags(n)         end
     if self.chip == "favorites" then return Repo.getFavorites(n)    end
     return {}
 end
@@ -746,6 +750,7 @@ function BookshelfWidget:_chipLabel()
         series    = "Your series",
         authors   = "Authors",
         genres    = "Genres",
+        tags      = "Tags",
         favorites = "Favourites",
     }
     return labels[self.chip] or ""
@@ -910,6 +915,8 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD)
         on_author_hold    = function(_) end,
         on_genre_tap      = function(g) bw:_expandGenre(g) end,
         on_genre_hold     = function(_) end,
+        on_tag_tap        = function(g) bw:_expandTag(g) end,
+        on_tag_hold       = function(_) end,
         on_folder_tap     = function(f) bw:_expandFolder(f) end,
         on_folder_hold    = function(_) end,  -- no folder menu yet
     }
@@ -1674,7 +1681,7 @@ function BookshelfWidget:_drillInto(entry)
     -- The shelf below shows the same book with a selection border.
     self._preview_book = nil
     if (entry.kind == "series" or entry.kind == "author"
-            or entry.kind == "genre")
+            or entry.kind == "genre" or entry.kind == "tag")
             and entry.payload and entry.payload.books then
         local first = entry.payload.books[1]
         if first and first.filepath then
@@ -1731,6 +1738,15 @@ function BookshelfWidget:_expandGenre(group)
     if not group or not group.series_name then return end
     self:_drillInto{
         kind    = "genre",
+        label   = group.series_name,
+        payload = group,
+    }
+end
+
+function BookshelfWidget:_expandTag(group)
+    if not group or not group.series_name then return end
+    self:_drillInto{
+        kind    = "tag",
         label   = group.series_name,
         payload = group,
     }

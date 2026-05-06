@@ -101,6 +101,16 @@ function ShelfRow.new(opts)
                 on_tap  = opts.on_genre_tap,
                 on_hold = opts.on_genre_hold,
             }
+        elseif item and item.kind == "tag" then
+            -- Tag / collection group (SeriesStack visual, collection
+            -- name on the band)
+            row[#row + 1] = SeriesStack:new{
+                series  = item,
+                width   = slot_w,
+                height  = slot_h,
+                on_tap  = opts.on_tag_tap,
+                on_hold = opts.on_tag_hold,
+            }
         elseif item and item.books then
             -- SeriesGroup (has a .books array; legacy detection — kind
             -- not always set on series records).
