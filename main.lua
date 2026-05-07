@@ -684,9 +684,48 @@ function Bookshelf:scanAllMetadata()
         return
     end
     local home = G_reader_settings:readSetting("home_dir") or "/"
-    BIM:extractBooksInDirectory(home, nil)
-    local Repo = require("book_repository")
-    Repo.invalidateWalkCache()
+    -- BIM:extractBooksInDirectory uses Trapper:confirm for four prompts
+    -- in fixed order: Continue / Recursive / Refresh / Prune. We don't
+    -- need to ask the user about the first two — they already chose
+    -- this menu item (= Continue), and we always want to recurse into
+    -- subdirectories under home_dir (= Here and under). So we
+    -- auto-answer the first two and let the user respond to the
+    -- meaningful Refresh and Prune prompts.
+    --
+    -- Trapper:confirm requires running inside a coroutine started by
+    -- Trapper:wrap — otherwise it silently returns true for EVERY
+    -- prompt. That's how the first run of this menu item silently
+    -- enabled "Refresh existing", which combined with INSERT OR
+    -- REPLACE wiped all has_cover / cover_bb rows.
+    --
+    -- cover_specs MUST be supplied even if the user only wants a
+    -- metadata pass: with cover_specs = nil and Refresh = true, every
+    -- existing row's cover columns get replaced with NULLs. Hero card
+    -- covers are ~30% of screen width × 1.5 aspect — match those.
+    local Screen  = require("device").screen
+    local Trapper = require("ui/trapper")
+    local hero_w  = math.floor(Screen:getWidth() * 0.30)
+    local hero_h  = math.floor(hero_w * 1.5)
+    Trapper:wrap(function()
+        local original_confirm = Trapper.confirm
+        local prompt_idx = 0
+        Trapper.confirm = function(self, text, cancel_text, ok_text)
+            prompt_idx = prompt_idx + 1
+            -- 1: "This will extract metadata…" → Continue
+            -- 2: "Also extract from subdirectories?" → Here and under
+            if prompt_idx <= 2 then return true end
+            -- 3: Refresh, 4: Prune — pass through to the user.
+            return original_confirm(self, text, cancel_text, ok_text)
+        end
+        local ok, err = pcall(BIM.extractBooksInDirectory, BIM, home, {
+            max_cover_w = hero_w,
+            max_cover_h = hero_h,
+        })
+        Trapper.confirm = original_confirm
+        if not ok then error(err) end
+        local Repo = require("book_repository")
+        Repo.invalidateWalkCache()
+    end)
 end
 
 -- Clear dev branch + install latest stable release. Used when escaping a
