@@ -7,14 +7,22 @@
 -- walks pixel columns 3dp apart and draws a 1×thickness fillRect at each stop.
 -- Pattern reference: bookends_overlay_widget.lua lines 176–185 (MultiLineWidget).
 
+local CenterContainer = require("ui/widget/container/centercontainer")
 local FrameContainer  = require("ui/widget/container/framecontainer")
+local InputContainer  = require("ui/widget/container/inputcontainer")
 local VerticalGroup   = require("ui/widget/verticalgroup")
+local VerticalSpan    = require("ui/widget/verticalspan")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
+local TextBoxWidget   = require("ui/widget/textboxwidget")
+local TextWidget      = require("ui/widget/textwidget")
 local Widget          = require("ui/widget/widget")
+local GestureRange    = require("ui/gesturerange")
 local Geom            = require("ui/geometry")
 local Size            = require("ui/size")
+local Font            = require("ui/font")
 local Blitbuffer      = require("ffi/blitbuffer")
+local Screen          = require("device").screen
 local SpineWidget     = require("spine_widget")
 local SeriesStack     = require("series_stack")
 local FolderStack     = require("folder_stack")
@@ -63,6 +71,41 @@ function ShelfRow.new(opts)
     local slot_w  = math.floor((opts.width - gap * (n_slots - 1)) / n_slots)
     -- Standard 2:3 book-cover aspect (slot_w * 1.5) so covers look like books.
     local slot_h  = math.floor(slot_w * 1.5)
+    -- Honour the parent's budgeted row height (opts.height) when supplied.
+    --   - If budget is SMALLER than natural: shrink the slot to fit AND
+    --     recompute slot_w so the cover stays 2:3. (Tight layouts like
+    --     expanded mode + small screens.)
+    --   - If budget is LARGER than natural: GROW slot_h to fill the budget
+    --     while keeping slot_w at natural — the row still spans content_w
+    --     and the extra slot height goes to the cover (slightly fatter than
+    --     natural aspect, but no horizontal whitespace and the row doesn't
+    --     leave slack that would push pagination off its fixed y position).
+    if opts.height then
+        if slot_h > opts.height then
+            slot_h = opts.height
+            slot_w = math.floor(slot_h / 1.5)
+        elseif slot_h < opts.height then
+            slot_h = opts.height
+            -- slot_w stays at natural — covers fill row width without gaps.
+        end
+    end
+
+    -- Titles-under-cover mode (used in expanded shelf): reserve a thin
+    -- strip below each cover for the book title. Cover shrinks vertically
+    -- only — slot_w stays the same so the row still fills content_w like
+    -- the chip strip / pagination above and below. (Per "scale height,
+    -- not width".)
+    --
+    -- Single line at 14pt — short titles fit, longer ones truncate with
+    -- ellipsis at the right edge of the slot. Two-line wrap was tried and
+    -- read as crowded; truncation keeps the grid scannable.
+    local title_block_h = 0
+    local title_face
+    if opts.show_titles then
+        title_face    = Font:getFace("infofont", 14)
+        title_block_h = Size.padding.small + math.floor(title_face.size * 1.3)
+    end
+    local cover_h = slot_h - title_block_h
     local row     = HorizontalGroup:new{}
 
     for i = 1, n_slots do
@@ -72,66 +115,124 @@ function ShelfRow.new(opts)
         end
 
         local item = opts.items and opts.items[i]
+        -- Helper: when titles are shown (expanded mode), wrap a non-book
+        -- widget so its visual occupies cover_h and a VerticalSpan below
+        -- claims the title_block_h slot. Without this, group/folder
+        -- widgets render at the full slot_h while books render at cover_h
+        -- + title; the cover bottoms then misalign within a row that
+        -- mixes types.
+        local function wrap_for_title_alignment(widget)
+            if not opts.show_titles then return widget end
+            return VerticalGroup:new{
+                align = "center",
+                widget,
+                VerticalSpan:new{ width = title_block_h },
+            }
+        end
+        local non_book_h = opts.show_titles and cover_h or slot_h
+
         if item and item.kind == "folder" then
             -- Folder record (carries path / label / first_book)
-            row[#row + 1] = FolderStack:new{
+            row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
                 folder      = item,
                 width       = slot_w,
-                height      = slot_h,
+                height      = non_book_h,
                 on_tap      = opts.on_folder_tap,
                 on_hold     = opts.on_folder_hold,
                 is_selected = opts.selected_filepath and item.first_book
                               and item.first_book.filepath == opts.selected_filepath,
-            }
+            })
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
-            row[#row + 1] = SeriesStack:new{
+            row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series  = item,
                 width   = slot_w,
-                height  = slot_h,
+                height  = non_book_h,
                 on_tap  = opts.on_author_tap,
                 on_hold = opts.on_author_hold,
-            }
+            })
         elseif item and item.kind == "genre" then
             -- Genre group (SeriesStack visual, genre name on the band)
-            row[#row + 1] = SeriesStack:new{
+            row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series  = item,
                 width   = slot_w,
-                height  = slot_h,
+                height  = non_book_h,
                 on_tap  = opts.on_genre_tap,
                 on_hold = opts.on_genre_hold,
-            }
+            })
         elseif item and item.kind == "tag" then
             -- Tag / collection group (SeriesStack visual, collection
             -- name on the band)
-            row[#row + 1] = SeriesStack:new{
+            row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series  = item,
                 width   = slot_w,
-                height  = slot_h,
+                height  = non_book_h,
                 on_tap  = opts.on_tag_tap,
                 on_hold = opts.on_tag_hold,
-            }
+            })
         elseif item and item.books then
             -- SeriesGroup (has a .books array; legacy detection — kind
             -- not always set on series records).
-            row[#row + 1] = SeriesStack:new{
+            row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series  = item,
                 width   = slot_w,
-                height  = slot_h,
+                height  = non_book_h,
                 on_tap  = opts.on_series_tap,
                 on_hold = opts.on_series_hold,
-            }
+            })
         elseif item then
             -- Single book record
-            row[#row + 1] = SpineWidget:new{
+            local spine = SpineWidget:new{
                 book        = item,
                 width       = slot_w,
-                height      = slot_h,
-                on_tap      = opts.on_book_tap,
-                on_hold     = opts.on_book_hold,
+                height      = cover_h,
+                -- When titles are visible, the InputContainer wrapper below
+                -- handles taps for the whole slot (cover + title) so the
+                -- title area is also tappable; pass nil here so SpineWidget
+                -- doesn't double-fire.
+                on_tap      = (not opts.show_titles) and opts.on_book_tap or nil,
+                on_hold     = (not opts.show_titles) and opts.on_book_hold or nil,
                 is_selected = opts.selected_filepath
                               and item.filepath == opts.selected_filepath,
             }
+            if opts.show_titles then
+                local title_text = item.title or
+                                   ((item.filepath or ""):match("([^/]+)$") or "")
+                                       :gsub("%.[^.]+$", "")
+                -- TextWidget (single-line) auto-truncates with ellipsis at
+                -- max_width — exactly what we want here. TextBoxWidget would
+                -- wrap to two lines for longer titles which crowds the grid.
+                local title_widget = TextWidget:new{
+                    text      = title_text,
+                    face      = title_face,
+                    max_width = slot_w,
+                }
+                local slot_dimen = Geom:new{ w = slot_w, h = slot_h }
+                local stack = VerticalGroup:new{
+                    align = "center",
+                    spine,
+                    VerticalSpan:new{ width = Size.padding.small },
+                    title_widget,
+                }
+                local slot = InputContainer:new{ dimen = slot_dimen, stack }
+                slot.ges_events = {
+                    Tap  = { GestureRange:new{ ges = "tap",  range = slot_dimen } },
+                    Hold = { GestureRange:new{ ges = "hold", range = slot_dimen } },
+                }
+                local on_tap_cb  = opts.on_book_tap
+                local on_hold_cb = opts.on_book_hold
+                function slot:onTap()
+                    if on_tap_cb then on_tap_cb(item) end
+                    return true
+                end
+                function slot:onHold()
+                    if on_hold_cb then on_hold_cb(item) end
+                    return true
+                end
+                row[#row + 1] = slot
+            else
+                row[#row + 1] = spine
+            end
         else
             -- Empty slot — a bare Widget with a sized dimen. FrameContainer
             -- crashes on getSize() when its self[1] child is nil, so we use
@@ -144,7 +245,17 @@ function ShelfRow.new(opts)
     end
 
     -- Shelf base rule removed (read as visual noise rather than support).
-    -- Just return the slot row directly.
+    -- Centre the row within the parent's budgeted width when slot_w was
+    -- shrunk to preserve the 2:3 cover aspect (so the row width is now less
+    -- than opts.width). Without centering, the row paints flush-left with
+    -- the slack appearing as a right-side margin — uneven visually.
+    local row_w = n_slots * slot_w + (n_slots - 1) * gap
+    if opts.width and opts.width > row_w then
+        return CenterContainer:new{
+            dimen = Geom:new{ w = opts.width, h = slot_h },
+            row,
+        }
+    end
     return row
 end
 
