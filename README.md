@@ -18,27 +18,6 @@ Latest, Series, and Favourites.
 
 ---
 
-## Home screen layout
-
-```
-┌──────────────────────────────────────┐
-│ [cover]   14:32  ⚡73%  💡  📶      │  ← Status line (right-aligned, hairline)
-│           ─────────────────          │
-│           Title of the Book          │  ← Title region
-│           Author Name                │  ← Author region
-│                                      │
-│           Description of the book…   │  ← Description (fills the slack)
-│                                      │
-│           36% ━━━━━━━━━┯━━━ 3h 12m   │  ← Progress region (text + %bar inline)
-├──────────────────────────────────────┤
-│  Recent   Latest   Series   ★        │  ← Chip strip
-├──────────────────────────────────────┤
-│ Recently read  ·  1–8 of 12  ›       │  ← Shelf label
-│ [spine] [spine] [spine] [spine]      │  ← Shelf row 1
-│ [spine] [spine] [spine] [spine]      │  ← Shelf row 2
-└──────────────────────────────────────┘
-```
-
 Tap any spine to open that book. Long-press a spine for options (favourite, info, remove from history). On the **Series** chip, tap a series stack to drill in — the chip strip morphs into a breadcrumb (`[Series] > Series Title`) and the shelf shows that series' books. Tap the chip pill or any crumb to step back out. Pagination chevrons stay available inside drilled views, so series with more than 8 books page through normally.
 
 The chip list itself can be customised: **FileManager menu → Bookshelf → Edit shelf tabs** opens a 4-row submenu with checkboxes per chip. Untick the ones you don't use.
@@ -69,9 +48,9 @@ In 3-row mode the visible top two rows are preserved across the toggle — if yo
 
 ---
 
-## Hero card editor
+## Book detail view  editor
 
-Five regions of the hero card are user-editable token templates with per-region styling. Open **FileManager menu → Bookshelf → Edit hero card** for a drill-down submenu showing all five regions with a live preview snippet:
+Five regions of the hero card are user-editable token templates with per-region styling. Open **FileManager menu → Bookshelf → Edit book detail view** for a drill-down submenu showing all five regions with a live preview snippet:
 
 ```
 ☑ Status: 14:32  ⚡73%  💡 18%  📶
@@ -251,8 +230,6 @@ Bookshelf-specific keys are prefixed `bookshelf_`:
 - **`%bar` outside the Progress region** renders as the literal text `%bar`. The inline-bar split only runs in the progress block of the renderer; in other regions there's no bar widget to layer in.
 - **Italic** is reachable only via the font picker (selecting an italic family). The line editor has no italic toggle because `TextBoxWidget` doesn't synthesise italic from upright fonts.
 - **Inline format tags** `[b]`, `[i]`, `[u]` in templates are stripped before display. Per-region bold is via the Bold button, not the `[b]` tag.
-- **"Latest" walk performance** — the Latest chip walks the filesystem at every label refresh. On large libraries the first paint can pause briefly. Caching is on the roadmap.
-- **No in-app updater** — install new releases manually from GitHub Releases.
 
 ---
 
