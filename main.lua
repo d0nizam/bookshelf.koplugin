@@ -305,7 +305,7 @@ function Bookshelf:addToMainMenu(menu_items)
                     local enabled = G_reader_settings:readSetting("bookshelf_calibre_metadata") == true
                     G_reader_settings:saveSetting("bookshelf_calibre_metadata", not enabled)
                     G_reader_settings:flush()
-                    local ok, Repo = pcall(require, "book_repository")
+                    local ok, Repo = pcall(require, "bookshelf_book_repository")
                     if ok and Repo and Repo.invalidateWalkCache then
                         Repo.invalidateWalkCache()
                     end
@@ -493,7 +493,7 @@ function Bookshelf:onCloseDocument()
     -- The just-closed file's stats DID change (new pages read), so its
     -- cached enrichStats fields should be dropped — the hero rebuild that
     -- follows must see the new totals. Targeted to the closed file only.
-    local Repo = require("book_repository")
+    local Repo = require("bookshelf_book_repository")
     if Repo and Repo.invalidateStatsCache and self.ui and self.ui.document
        and self.ui.document.file then
         Repo.invalidateStatsCache(self.ui.document.file)
@@ -676,7 +676,7 @@ function Bookshelf:scanAllMetadata()
         })
         Trapper.confirm = original_confirm
         if not ok then error(err) end
-        local Repo = require("book_repository")
+        local Repo = require("bookshelf_book_repository")
         Repo.invalidateWalkCache()
     end)
 end

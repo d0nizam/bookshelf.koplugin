@@ -1,4 +1,4 @@
--- folder_card.lua
+-- bookshelf_folder_card.lua
 -- The shared "cardboard folder card" primitive used by FolderStack and
 -- SeriesStack. Renders an L-shaped cardboard silhouette (small index tab
 -- on the top-left, full-width body below) sized to fit up to two lines

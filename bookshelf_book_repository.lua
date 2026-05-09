@@ -1,4 +1,4 @@
--- book_repository.lua
+-- bookshelf_book_repository.lua
 -- Unified Book record source over KOReader's ReadHistory, ReadCollection,
 -- BookInfoManager, DocSettings, and (optionally) statistics.koplugin.
 --

@@ -1,4 +1,4 @@
--- chip_strip.lua
+-- bookshelf_chip_strip.lua
 -- Two render modes:
 --
 --   1. Default (chips list): segmented control of N chips (Recent / Latest /
