@@ -20,10 +20,10 @@ local Screen          = Device.screen
 
 local _           = require("bookshelf_i18n").gettext
 
-local Repo        = require("book_repository")
-local HeroCard    = require("hero_card")
-local ChipStrip   = require("chip_strip")
-local ShelfRow    = require("shelf_row")
+local Repo        = require("bookshelf_book_repository")
+local HeroCard    = require("bookshelf_hero_card")
+local ChipStrip   = require("bookshelf_chip_strip")
+local ShelfRow    = require("bookshelf_shelf_row")
 local logger      = require("logger")
 
 -- Wall-clock timer for perf instrumentation. LuaSocket's gettime() gives
@@ -1398,6 +1398,10 @@ function BookshelfWidget:_openBook(book)
     -- under the reader is wasted Lua wakeups — battery matters most
     -- during a long read. Bookshelf:show() re-arms us when the user
     -- closes the book.
+    -- Save rotation so we can restore portrait orientation on return — the
+    -- reader may have been opened in a different rotation (e.g. upside-down
+    -- on Kobo) and KOReader leaves the rotation active when it closes.
+    self._pre_read_rotation = Screen:getRotationMode()
     self:_stopStatusTimer()
     local ReaderUI = require("apps/reader/readerui")
     ReaderUI:showReader(book.filepath)
@@ -2166,7 +2170,7 @@ local NIGHTMODE_TOKENS  = { "nightmode" }
 -- (the boundary check makes that a separate match the caller can
 -- target precisely if needed).
 function BookshelfWidget:_anyActiveRegionUses(tokens)
-    local Regions = require("hero_regions")
+    local Regions = require("bookshelf_hero_regions")
     local resolved = Regions.read()
     for _, key in ipairs(Regions.ORDER) do
         local r = resolved[key]
@@ -2196,7 +2200,7 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
         if not (self._hero_parent and self._hero_parent[1]
                 and self._hero_parent[1].replaceRightColumn) then return end
         if not self:_anyActiveRegionUses(tokens) then return end
-        local Regions = require("hero_regions")
+        local Regions = require("bookshelf_hero_regions")
         -- Every gated repaint here is driven by status-line state
         -- (clock tick / battery / wifi / brightness / nightmode) so the
         -- "status" hint scopes the panel refresh to just the status
@@ -2304,7 +2308,7 @@ function BookshelfWidget:onResume()
             and self._hero_parent
             and self._hero_parent[1]
             and self._hero_parent[1].replaceRightColumn then
-        local Regions = require("hero_regions")
+        local Regions = require("bookshelf_hero_regions")
         self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end
 end

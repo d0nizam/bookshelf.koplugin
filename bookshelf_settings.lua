@@ -1,4 +1,4 @@
--- settings.lua
+-- bookshelf_settings.lua
 -- Gear-menu settings modal for Bookshelf: hero-card line editor, font scale,
 -- progress-bar toggle, latest-walk depth, titlebar-meta toggle, About.
 --
@@ -53,7 +53,7 @@ end
 -- (different signature), and its catalogue includes Reader-context
 -- tokens we deliberately exclude.
 function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
-    local Tokens          = require("tokens")
+    local Tokens          = require("bookshelf_tokens")
     local Font            = require("ui/font")
     local TextWidget      = require("ui/widget/textwidget")
     local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -105,7 +105,7 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
     local preview_book, preview_state
     if self._bw then
         preview_book = self._bw._preview_book
-        local ok_repo, Repo = pcall(require, "book_repository")
+        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
         if not preview_book and ok_repo and Repo and Repo.getCurrent then
             preview_book = Repo.getCurrent()
         end
@@ -240,7 +240,7 @@ end
 function Settings:_pickTokenFallback(dialog)
     local Menu   = require("ui/widget/menu")
     local Screen = require("device").screen
-    local Tokens = require("tokens")
+    local Tokens = require("bookshelf_tokens")
 
     local menu
     local function pickAndClose(tok)
@@ -292,7 +292,7 @@ function Settings:_previewContext()
     local book, state
     if self._bw then
         book = self._bw._preview_book
-        local ok_repo, Repo = pcall(require, "book_repository")
+        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
         if not book and ok_repo and Repo and Repo.getCurrent then
             book = Repo.getCurrent()
         end
@@ -313,8 +313,8 @@ end
 -- Tap = open the line editor (chooser is hidden while editor is open).
 -- Long-press = toggle enabled.
 function Settings:_heroSubItems()
-    local Regions = require("hero_regions")
-    local Tokens  = require("tokens")
+    local Regions = require("bookshelf_hero_regions")
+    local Tokens  = require("bookshelf_tokens")
     local items = {
         {
             text      = _("Font scale"),
@@ -369,7 +369,7 @@ end
 -- single region. Passes the FM TouchMenu through so the editor can hide
 -- it while open and re-show it on Save/Cancel.
 function Settings:_editHeroRegion(key, touchmenu_instance)
-    local LineEditor = require("hero_line_editor")
+    local LineEditor = require("bookshelf_hero_line_editor")
     LineEditor.show(key, self._bw, self, touchmenu_instance)
 end
 
