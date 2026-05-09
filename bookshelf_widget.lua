@@ -1134,7 +1134,7 @@ function BookshelfWidget:_pollExtraction()
         return
     end
     local max_tries = BIM.max_extract_tries or 3
-    local any_new       = false
+    local ready_paths   = {}
     local still_pending = {}
     for _, f in ipairs(files) do
         local info = BIM:getBookInfo(f.filepath, false)
@@ -1161,7 +1161,7 @@ function BookshelfWidget:_pollExtraction()
             end
         end
         if meta_ready and inprog == 0 and cover_ready then
-            any_new = true
+            ready_paths[f.filepath] = true
         elseif info and inprog >= max_tries then
             -- BIM gave up on this file; stop watching it.
         else
@@ -1169,16 +1169,31 @@ function BookshelfWidget:_pollExtraction()
         end
     end
     self._bim_poll_files = #still_pending > 0 and still_pending or nil
-    if any_new and self._inner_vgroup and self._shelf_dims then
+    if next(ready_paths) and self._inner_vgroup and self._shelf_dims then
         -- _swapShelvesInPlace re-fetches Book records (which re-query
         -- BIM) and re-arms polling for whatever is still missing.
         self:_swapShelvesInPlace()
-        -- The hero book may have been re-extracted too (it's queued
-        -- explicitly in _kickOffMissingMetaExtraction). Swap the hero
-        -- card so its cover picks up the new cached bb — _swapShelves
-        -- doesn't touch the hero by design.
-        if self._hero_parent and self._hero_dims then
-            self:_swapHeroInPlace()
+        -- Only swap the hero if its specific book was in the just-ready
+        -- set. In expanded mode the "hero slot" is the static status strip
+        -- (time/battery), which doesn't depend on book covers, so skip
+        -- entirely. In collapsed mode, an unrelated grid book finishing
+        -- extraction shouldn't trigger a hero rebuild — that was the
+        -- bleed-through bug where _swapHeroInPlace slotted a tall
+        -- HeroCard into the thin-strip slot during expanded mode, and
+        -- also wasteful in collapsed mode (16 grid covers loading meant
+        -- ~16 hero rebuilds for nothing).
+        if not self._expanded
+                and self._hero_parent and self._hero_dims then
+            local hero_fp
+            if self._preview_book then
+                hero_fp = self._preview_book.filepath
+            else
+                local cur = Repo.getCurrent and Repo.getCurrent()
+                hero_fp = cur and cur.filepath
+            end
+            if hero_fp and ready_paths[hero_fp] then
+                self:_swapHeroInPlace()
+            end
         end
         return
     end
@@ -2003,11 +2018,23 @@ end
 -- Rebuild the hero from current state and swap it into _hero_parent[1].
 -- Shared between _previewBook (synchronous swap on user tap) and the async
 -- cover-load completion path. No-op if there's no live tree to swap into.
+--
+-- Must mirror _rebuild's expanded/collapsed dispatch — building a full
+-- HeroCard while we're in expanded mode would slot a tall widget into a
+-- slot sized for the thin expanded strip. The previous build's hero pixels
+-- (cover image + title) then bleed through the chip strip area on the next
+-- BIM-poll repaint, which is what the user sees as "the hero card reappears
+-- behind the listing" after swiping up while covers are still loading.
 function BookshelfWidget:_swapHeroInPlace()
     if not self._hero_parent or not self._hero_dims then return end
     local d = self._hero_dims
-    local new_hero = self:_buildHero(
-        d.content_w, d.hero_cover_w, d.hero_cover_h, d.hero_h, d.PAD)
+    local new_hero
+    if self._expanded then
+        new_hero = self:_buildExpandedStrip(d.content_w, d.hero_h, d.PAD)
+    else
+        new_hero = self:_buildHero(
+            d.content_w, d.hero_cover_w, d.hero_cover_h, d.hero_h, d.PAD)
+    end
     local old_hero = self._hero_parent[1]
     self._hero_parent[1] = new_hero
     if self._hero_parent.resetLayout then
