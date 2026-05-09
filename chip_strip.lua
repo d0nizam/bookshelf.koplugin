@@ -43,6 +43,18 @@ local Blitbuffer     = require("ffi/blitbuffer")
 local UIManager      = require("ui/uimanager")
 local Screen         = require("device").screen
 
+-- FrameContainer that pixel-inverts its own rect after painting. Used for
+-- selected chips: renders black-on-white then flips via a blitbuffer primitive
+-- so the inversion is device-independent (avoids TextWidget fgcolor, which
+-- some Kindle builds do not honour).
+local InvertedFrame = FrameContainer:extend{}
+function InvertedFrame:paintTo(bb, x, y)
+    FrameContainer.paintTo(self, bb, x, y)
+    if self._invert then
+        bb:invertRect(x, y, self.dimen.w, self.dimen.h)
+    end
+end
+
 local ChipStrip = InputContainer:extend{
     chips             = nil,   -- list of { key, label } (chips mode)
     active            = nil,   -- key of the currently-selected chip
@@ -352,7 +364,6 @@ function ChipStrip:_initChips()
             cell_content = TextWidget:new{
                 text    = chip.nerd_glyph,
                 face    = Font:getFace("infofont", 18),
-                fgcolor = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK,
             }
         elseif chip.icon then
             local IconWidget = require("ui/widget/iconwidget")
@@ -365,14 +376,12 @@ function ChipStrip:_initChips()
                 icon   = chip.icon,
                 width  = icon_size,
                 height = icon_size,
-                invert = is_active or nil,
             }
         else
             cell_content = TextWidget:new{
                 text      = (chip.label or ""):upper(),
                 face      = Font:getFace("infofont", 16),
                 bold      = true,
-                fgcolor   = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK,
                 -- Truncate with ellipsis at extreme DPI / font scale
                 -- rather than letting "FAVOURITES" overflow into the
                 -- adjacent chip's cell. Some inner padding (Size.
@@ -382,26 +391,21 @@ function ChipStrip:_initChips()
             }
         end
         -- Reserve a thick border slot on every chip so we can swap its
-        -- colour without shifting the cell_content position. The border
-        -- is invisible against the chip's bg in idle/active state
-        -- (paper-on-paper or black-on-black) and switches to black when
-        -- the chip is pending — drawing a hollow ring inside the chip
-        -- silhouette as tap feedback. Size.border.thick (2dp) reads
-        -- more clearly as a "ring" than the chip strip's own outer
-        -- border (Size.border.thin = 0.5dp).
+        -- colour without shifting the cell_content position. Chips always
+        -- render black-on-paper; InvertedFrame pixel-flips the active chip
+        -- after painting so the inversion is a blitbuffer primitive rather
+        -- than a font-colour path. The border is paper (invisible) normally
+        -- and for active chips (inverted to black); it goes black only when
+        -- pending — drawing a hollow ring as tap feedback.
         local b = Size.border.thick
-        local border_color
-        if is_pending or is_active then
-            border_color = Blitbuffer.COLOR_BLACK
-        else
-            border_color = paper
-        end
-        local chip_body = FrameContainer:new{
+        local border_color = is_pending and Blitbuffer.COLOR_BLACK or paper
+        local chip_body = InvertedFrame:new{
+            _invert    = is_active,
             bordersize = b,
             color      = border_color,
             margin     = 0,
             padding    = 0,
-            background = is_active and Blitbuffer.COLOR_BLACK or paper,
+            background = paper,
             CenterContainer:new{
                 dimen = Geom:new{ w = w - 2 * b, h = self.height - 2 * b },
                 cell_content,
