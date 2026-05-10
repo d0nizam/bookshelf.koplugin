@@ -26,29 +26,14 @@ local Font           = require("ui/font")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
 
--- CardboardTextBox: TextBoxWidget subclass whose paintTo composites a CARDBOARD
--- background into the target bb using only standard blitbuffer primitives.
---
--- TextBoxWidget._bb is always initialised white before glyphs are rendered
--- into it; on KOReader builds where bgcolor is silently ignored, blitting
--- that _bb covers any parent-painted CARDBOARD with a white rectangle.
---
--- Algorithm (invert → saturating-add → invert):
---   1. Fill target area with CARDBOARD; invert → inverted-CARDBOARD.
---   2. Invert _bb: white-bg→black, black-text→white.
---   3. addblitFrom: black-bg + inv-CARDBOARD = inv-CARDBOARD (unchanged);
---                   white-text + inv-CARDBOARD = saturates to 0xFF.
---   4. Restore _bb (invert back).
---   5. Invert target: inv-CARDBOARD→CARDBOARD (bg), 0xFF→0x00 (black text).
---
--- No Lua pixel loops; works on both greyscale and colour targets.
+-- CardboardTextBox: TextBoxWidget subclass that pins alpha=true so its
+-- explicit bgcolor=CARDBOARD and fgcolor=COLOR_BLACK survive third-party
+-- monkey-patching. appearance.koplugin's _renderText patches gate on
+-- `not self.alpha` — alpha=true trips that escape hatch and preserves our
+-- colours when a theme is applied. alpha is a no-op for TextBoxWidget
+-- itself on this KOReader build: _renderBB derives bbtype from
+-- Screen.isColorEnabled only, and paintTo uses plain blitFrom.
 local CardboardTextBox = TextBoxWidget:extend{
-    -- Set alpha=true to trip appearance.koplugin's existing escape hatch
-    -- (its _renderText patches skip when self.alpha is truthy). This
-    -- preserves our explicit bgcolor=CARDBOARD and fgcolor=COLOR_BLACK
-    -- when the user has applied a theme. alpha is a no-op for TextBoxWidget
-    -- itself on the current KOReader build: _renderBB derives bbtype from
-    -- Screen.isColorEnabled only, and paintTo uses plain blitFrom.
     alpha = true,
 }
 
