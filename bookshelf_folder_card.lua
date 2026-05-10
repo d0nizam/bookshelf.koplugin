@@ -288,7 +288,6 @@ function FolderCard.build(opts)
         face                          = face,
         bold                          = true,
         fgcolor                       = Blitbuffer.COLOR_BLACK,
-        bgcolor                       = CARDBOARD,
         width                         = label_w_avail,
         alignment                     = "left",
         height                        = label_h,
