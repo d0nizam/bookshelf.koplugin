@@ -46,12 +46,21 @@ local function _glyphSize(card_w)
     return px
 end
 
+-- Fraction of the in-progress glyph that dangles below the card edge.
+-- The complement (1 - DANGLE_FRACTION) is hidden behind the card.
+local GLYPH_DANGLE_FRACTION = 0.25
+
+-- Pixel thickness of the progress bar inside the card border.
+local function _barHeight()
+    return Screen:scaleBySize(3)
+end
+
 -- Extra vertical space required below the card so the in-progress glyph's
--- dangling tail (40% of glyph_h) fits within the slot's existing footprint
+-- dangling tail fits within the slot's existing footprint
 -- (slot_h - card_h = SHADOW_OFFSET when no extra). Returns the additional
 -- height to subtract from card_h.
 local function _glyphDangleExtra(card_w)
-    local dangle = math.floor(_glyphSize(card_w) * 0.4 + 0.5)
+    local dangle = math.floor(_glyphSize(card_w) * GLYPH_DANGLE_FRACTION + 0.5)
     local extra  = dangle - SHADOW_OFFSET
     if extra < 0 then extra = 0 end
     return extra
@@ -275,6 +284,12 @@ local SpineWidget = InputContainer:extend{
     -- the copies leak across chip rebuilds.
     cover_bb            = nil,
     cover_bb_disposable = false,
+    -- Cover-level progress indicators (top-edge bar + bottom-left
+    -- bookmark glyph) are a grid-cell affordance only. Hero card,
+    -- folder stacks, and series stacks reuse SpineWidget for the
+    -- underlying cover but should NOT show indicators -- they'd
+    -- appear above/around overlay graphics. Opt-in from ShelfRow.
+    show_progress       = false,
 }
 
 function SpineWidget:init()
@@ -307,7 +322,9 @@ end
 --     surprises.
 function SpineWidget:_renderShadowedCard(inner)
     local card_w, card_h = self:_cardDimensions()
-    local indicators     = CoverProgress.decide(self.book)
+    local indicators     = self.show_progress
+        and CoverProgress.decide(self.book)
+        or  { bar = false, bar_pct = 0, glyph = nil }
 
     local children = {}
 
@@ -329,7 +346,8 @@ function SpineWidget:_renderShadowedCard(inner)
         }
     end
 
-    -- 2. In-progress glyph (BEHIND inner): top 60% under the card, bottom 40%
+    -- 2. In-progress glyph (BEHIND inner): top portion under the card,
+    --    bottom (1 - GLYPH_DANGLE_FRACTION) of the glyph hidden, the rest
     --    dangling below the card edge.
     if indicators.glyph == "in_progress" then
         local colours = CoverProgress.resolvedColours()
@@ -338,7 +356,8 @@ function SpineWidget:_renderShadowedCard(inner)
         if glyph_w <= card_w * 0.4 then
             local glyph = CoverProgress.buildGlyphWidget(
                 CoverProgress.GLYPH_BOOKMARK, glyph_h, colours.fill)
-            local y_offset = card_h - math.floor(glyph_h * 0.6 + 0.5)
+            local y_offset = card_h
+                - math.floor(glyph_h * (1 - GLYPH_DANGLE_FRACTION) + 0.5)
             children[#children + 1] = FrameContainer:new{
                 bordersize   = 0,
                 padding      = 0,
@@ -373,7 +392,7 @@ function SpineWidget:_renderShadowedCard(inner)
     -- 5. Progress bar (IN FRONT, top-inside-border)
     if indicators.bar then
         local colours = CoverProgress.resolvedColours()
-        local bar_h = Size.line.thick
+        local bar_h = _barHeight()
         local bar   = CoverProgress.buildBarWidget(
             card_w - 2 * CARD_BORDER, bar_h,
             indicators.bar_pct, colours.fill, colours.track)
@@ -406,9 +425,11 @@ end
 function SpineWidget:_cardDimensions()
     local card_w = self.width  - SHADOW_OFFSET
     local card_h = self.height - SHADOW_OFFSET
-    local indicators = CoverProgress.decide(self.book)
-    if indicators.glyph == "in_progress" then
-        card_h = card_h - _glyphDangleExtra(card_w)
+    if self.show_progress then
+        local indicators = CoverProgress.decide(self.book)
+        if indicators.glyph == "in_progress" then
+            card_h = card_h - _glyphDangleExtra(card_w)
+        end
     end
     return card_w, card_h
 end
@@ -428,9 +449,9 @@ function SpineWidget:_renderCover(bb)
     -- gutter between bar and image). Shifting is handled by wrapping the
     -- ImageWidget in a FrameContainer with extra top padding.
     local bar_h = 0
-    do
+    if self.show_progress then
         local _i = CoverProgress.decide(self.book)
-        if _i.bar then bar_h = Size.line.thick end
+        if _i.bar then bar_h = _barHeight() end
     end
     local img_top_inset = bar_h > 0 and (bar_h + Screen:scaleBySize(1)) or 0
     img_h = img_h - img_top_inset
