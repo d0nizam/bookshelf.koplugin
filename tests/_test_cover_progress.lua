@@ -29,6 +29,12 @@ local function make_widget_base()
     return W
 end
 package.preload["ui/widget/widget"] = function() return make_widget_base() end
+package.preload["ui/widget/textwidget"] = function()
+    return { new = function(_, t) return t end }
+end
+package.preload["ui/font"] = function()
+    return { getFace = function() return {} end }
+end
 package.preload["ui/geometry"] = function()
     return {
         new = function(_, t)

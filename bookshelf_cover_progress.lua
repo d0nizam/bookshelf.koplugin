@@ -89,4 +89,24 @@ function M.buildBarWidget(width, height, pct, fill, track)
     }
 end
 
+-- ---------------------------------------------------------------------------
+-- Widget: GlyphWidget (status indicator)
+-- ---------------------------------------------------------------------------
+
+local TextWidget = require("ui/widget/textwidget")
+local Font       = require("ui/font")
+
+-- Build a single-glyph TextWidget for the in-progress / finished badges.
+-- @param glyph_char  one of GLYPH_BOOKMARK / GLYPH_BOOKMARK_CHECK
+-- @param size        target glyph height in pixels (already scaled)
+-- @param colour      Blitbuffer colour (resolved via bookshelf_colour)
+-- @return TextWidget
+function M.buildGlyphWidget(glyph_char, size, colour)
+    return TextWidget:new{
+        text    = glyph_char,
+        face    = Font:getFace("symbols", size),
+        fgcolor = colour,
+    }
+end
+
 return M
