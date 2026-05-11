@@ -551,12 +551,14 @@ function Settings:_progressIndicatorsSubItems()
     return {
         toggleRow("bookshelf_progress_bookmark_enabled",
                   _("Show reading bookmarks"), false),
-        toggleRow("bookshelf_progress_bar_enabled",
-                  _("Show progress bars"), false),
         toggleRow("bookshelf_progress_badge_enabled",
                   _("Show completed book badge"), false),
         toggleRow("bookshelf_show_series_num",
                   _("Show series #"), true),
+        -- 'Show progress bars' sits with the colour rows so it's
+        -- clear what 'Read color' / 'Unread color' apply to.
+        toggleRow("bookshelf_progress_bar_enabled",
+                  _("Show progress bars"), false),
         {
             text_func = function()
                 return _("Read color") .. ": " .. valueLabel("fill")
