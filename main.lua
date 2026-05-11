@@ -458,12 +458,11 @@ end
 function Bookshelf:_safeShow()
     if self.ui and self.ui.document and self.ui.onHome then
         if self:_isShowing() and self.ui.onClose then
-            -- Suppress onCloseDocument's own nextTick(show) for users with
-            -- start_with=bookshelf — we're about to refresh ourselves and
-            -- two queued shows on the same tick is wasteful.
-            self._handling_safe_show_close = true
             self.ui:onClose(false)
-            self._handling_safe_show_close = false
+            -- onCloseWidget's deferred-close check (below) keeps the
+            -- widget alive across the reader→home transition, so by
+            -- nextTick self._widget is still the live one and show()
+            -- hits the warm softRefresh path.
             UIManager:nextTick(function()
                 if self._widget then self:show() end
             end)
@@ -530,16 +529,46 @@ end
 -- so when the user picks Exit, the host (FM or Reader) is removed but the
 -- overlay remains and the loop keeps running. (Issue #15.)
 --
--- We disambiguate exit from FM↔Reader transitions via `tearing_down`: KOReader
--- sets it on the host that's transitioning to the other (filemanager.lua:837,
--- readerui.lua:588) but not on a real exit. Reader→Home doesn't set it either;
--- in that case we close the overlay and the new FM's _takeOver recreates it
--- on next tick, which is the correct end state.
+-- We disambiguate FM↔Reader transitions via `tearing_down`: KOReader sets it
+-- on the host that's transitioning to the other (filemanager.lua:837,
+-- readerui.lua:588). But the Reader→Home path (folder-tab in the reader
+-- menu, or ReaderStatus:openFileBrowser) doesn't set tearing_down — it
+-- calls ReaderUI:onClose() directly and then ReaderUI:showFileManager()
+-- after onClose returns. So at onCloseWidget time we can't tell yet whether
+-- the next host will be FM (transition, keep widget) or nothing (exit,
+-- close widget for clean quit).
+--
+-- We defer the close decision by one UIManager tick. By the time the
+-- deferred check runs, showFileManager (if any) has fired and we can
+-- look at FileManager.instance: alive → transition, keep the widget; gone
+-- → exit, close it. Until then the widget paints normally on top of FM
+-- (it never left the stack), so the user sees bookshelf throughout the
+-- transition instead of FileManager briefly flashing through.
 function Bookshelf:onCloseWidget()
     if not _live_widget then return end
     if self.ui and self.ui.tearing_down then return end
     if not UIManager:isWidgetShown(_live_widget) then return end
-    UIManager:close(_live_widget)
+    local kept_widget = _live_widget
+    UIManager:nextTick(function()
+        if not UIManager:isWidgetShown(kept_widget) then return end
+        local ok, FileManager = pcall(require, "apps/filemanager/filemanager")
+        if ok and FileManager and FileManager.instance
+                and UIManager:isWidgetShown(FileManager.instance) then
+            -- Transitioning to FM. Soft-refresh so the kept-alive widget
+            -- picks up the just-closed book's new progress / read time.
+            -- (onCloseDocument's own re-show schedule returns early when
+            -- self.ui.document is still set, which it is during the
+            -- CloseDocument event dispatch — so we trigger the refresh
+            -- ourselves here, with the document already nil.)
+            if kept_widget.softRefresh then
+                kept_widget:softRefresh()
+            else
+                UIManager:setDirty(kept_widget, "ui")
+            end
+            return
+        end
+        UIManager:close(kept_widget)
+    end)
 end
 
 function Bookshelf:onCloseDocument()
@@ -565,9 +594,6 @@ function Bookshelf:onCloseDocument()
     -- another. self.ui.document is still set in the latter case.
     if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
     if self.ui and self.ui.document then return end
-    -- _safeShow's fast path closes Reader directly and queues its own
-    -- show() on the next tick; let it do the work without a duplicate.
-    if self._handling_safe_show_close then return end
     -- If Bookshelf is already on the stack (the typical "open book from
     -- home, close back to home" flow now that _openBook leaves it there),
     -- self:show()'s refresh path handles the repaint without ever exposing
