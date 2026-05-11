@@ -339,6 +339,17 @@ end
 -- across the plugin's lifetime so opening a book and closing it doesn't
 -- require destroying + recreating + flashing the FileManager underneath.
 function Bookshelf:show()
+    -- Clear a stale self._widget. A previous show() may have adopted a
+    -- _live_widget from another plugin instance and rebound the close
+    -- callback to the adopter — when the user later closes the widget,
+    -- the rebound callback clears the adopter's _widget, but the original
+    -- owner (likely this plugin instance, on a subsequent show() call
+    -- from its menu) is left with a dangling pointer to the dead widget.
+    -- If we don't clear it here, the warm-path branch below would
+    -- softRefresh a widget that's no longer on the stack.
+    if self._widget and not UIManager:isWidgetShown(self._widget) then
+        self._widget = nil
+    end
     -- Idempotency: if a bookshelf widget already exists on the UIManager
     -- stack (created by some other plugin instance — a fresh
     -- bookshelf_fm:init + _takeOver after a reader-return, say — at the
