@@ -306,20 +306,8 @@ end
 --     position by exactly the padding amount — straightforward, no centering
 --     surprises.
 function SpineWidget:_renderShadowedCard(inner)
-    local card_w = self.width  - SHADOW_OFFSET
-    local card_h = self.height - SHADOW_OFFSET
-
-    -- Compute indicators ONCE and reuse below. decide() is pure; SpineWidget
-    -- doesn't see the book status anywhere else in this method.
-    local indicators = CoverProgress.decide(self.book)
-
-    -- If an in-progress glyph will dangle below the card, reserve space by
-    -- shrinking card_h so the tail stays within the slot's footprint.
-    local dangle_extra = 0
-    if indicators.glyph == "in_progress" then
-        dangle_extra = _glyphDangleExtra(card_w)
-        card_h = card_h - dangle_extra
-    end
+    local card_w, card_h = self:_cardDimensions()
+    local indicators     = CoverProgress.decide(self.book)
 
     local children = {}
 
@@ -411,8 +399,22 @@ function SpineWidget:_glyphWidth(glyph_h)
     return glyph_h
 end
 
+-- Computed card dimensions taking the in-progress glyph's dangle into
+-- account. Both _renderCover and _renderFallback must use this when
+-- sizing their inner card widget so the card doesn't overlap the
+-- dangle zone that _renderShadowedCard reserves on the bottom edge.
+function SpineWidget:_cardDimensions()
+    local card_w = self.width  - SHADOW_OFFSET
+    local card_h = self.height - SHADOW_OFFSET
+    local indicators = CoverProgress.decide(self.book)
+    if indicators.glyph == "in_progress" then
+        card_h = card_h - _glyphDangleExtra(card_w)
+    end
+    return card_w, card_h
+end
+
 function SpineWidget:_renderCover(bb)
-    local card_w, card_h = self.width - SHADOW_OFFSET, self.height - SHADOW_OFFSET
+    local card_w, card_h = self:_cardDimensions()
     -- The card-perimeter border stays thin in both states so the cover
     -- image's pixel position and size are identical between selected
     -- and unselected. The selection cue is a thicker BorderOverlay
@@ -546,8 +548,7 @@ function SpineWidget:_renderFallback()
     local LineWidget      = require("ui/widget/linewidget")
     local Font            = require("ui/font")
 
-    local card_w = self.width  - SHADOW_OFFSET
-    local card_h = self.height - SHADOW_OFFSET
+    local card_w, card_h = self:_cardDimensions()
     local border = CARD_BORDER
 
     -- Vintage-cover layout. Outer card paints a paper-tone background +
