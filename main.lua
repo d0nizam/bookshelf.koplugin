@@ -376,7 +376,18 @@ function Bookshelf:show()
         if _live_widget == widget_instance then _live_widget = nil end
     end
     _live_widget = self._widget
-    UIManager:show(self._widget)
+    -- Pass "ui" so UIManager:show enqueues a full-screen refresh alongside
+    -- our paint. Without it, setDirty(widget, nil) marks us dirty but
+    -- _refresh(nil) is a no-op, and any small-region refreshes already in
+    -- the queue (e.g. CoverMenu's items_update_action firing every 1s after
+    -- a BIM "extract and cache" scan) become the ONLY refreshes drained.
+    -- The EPDC then updates just those tiny cover-cell regions and leaves
+    -- the rest of the panel showing FileManager underneath, even though
+    -- Screen.bb is fully bookshelf. The collision-merge pass in _refresh
+    -- subsumes the small-region refreshes into our full-screen one. The
+    -- existing-widget path below already uses setDirty(..., "ui"); this
+    -- keeps the fresh-create path consistent. (Issue #18.)
+    UIManager:show(self._widget, "ui")
 end
 
 -- ---------------------------------------------------------------------------
