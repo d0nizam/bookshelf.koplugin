@@ -210,19 +210,19 @@ msgstr "predeterminado"
 
 #: bookshelf_settings.lua:553
 msgid "Show reading bookmarks"
-msgstr ""
+msgstr "Mostrar marcadores de lectura"
 
 #: bookshelf_settings.lua:555
 msgid "Show progress bars"
-msgstr ""
+msgstr "Mostrar barras de progreso"
 
 #: bookshelf_settings.lua:557
 msgid "Show completed book badge"
-msgstr ""
+msgstr "Mostrar insignia de libro terminado"
 
 #: bookshelf_settings.lua:559
 msgid "Show series #"
-msgstr ""
+msgstr "Mostrar nº de serie"
 
 #: bookshelf_settings.lua:562
 msgid "Read color"
@@ -242,15 +242,15 @@ msgstr "Color no leído (% negro)"
 
 #: bookshelf_settings.lua:591
 msgid "Reset colours to defaults"
-msgstr ""
+msgstr "Restablecer colores predeterminados"
 
 #: bookshelf_settings.lua:615
 msgid "Cover progress indicators"
-msgstr ""
+msgstr "Indicadores de progreso en las portadas"
 
 #: bookshelf_settings.lua:621
 msgid "Advanced settings"
-msgstr ""
+msgstr "Configuración avanzada"
 
 #: bookshelf_settings.lua:635
 msgid "Scan all library metadata"
@@ -565,19 +565,19 @@ msgstr ""
 
 #: main.lua:301
 msgid "Close Bookshelf"
-msgstr ""
+msgstr "Cerrar Bookshelf"
 
 #: main.lua:301
 msgid "Open Bookshelf"
-msgstr ""
+msgstr "Abrir Bookshelf"
 
 #: main.lua:316
 msgid "Edit book detail view"
-msgstr ""
+msgstr "Editar vista de detalles del libro"
 
 #: main.lua:325
 msgid "Choose Bookshelf tabs"
-msgstr ""
+msgstr "Elegir pestañas de Bookshelf"
 
 #: main.lua:335
 msgid "Settings"
@@ -585,7 +585,7 @@ msgstr "Ajustes"
 
 #: main.lua:343
 msgid "Updates"
-msgstr ""
+msgstr "Actualizaciones"
 
 #: main.lua:348
 msgid "About"
