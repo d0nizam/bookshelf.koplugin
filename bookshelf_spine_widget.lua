@@ -48,11 +48,11 @@ end
 
 -- Fraction of the in-progress glyph that dangles below the card edge.
 -- The complement (1 - DANGLE_FRACTION) is hidden behind the card.
-local GLYPH_DANGLE_FRACTION = 0.25
+local GLYPH_DANGLE_FRACTION = 0.15
 
 -- Pixel thickness of the progress bar inside the card border.
 local function _barHeight()
-    return Screen:scaleBySize(3)
+    return Screen:scaleBySize(6)
 end
 
 -- Extra vertical space required below the card so the in-progress glyph's
