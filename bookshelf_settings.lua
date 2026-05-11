@@ -443,6 +443,152 @@ function Settings:_chipsSubItems()
     return items
 end
 
+-- ---------------------------------------------------------------------------
+-- Progress indicators menu
+-- ---------------------------------------------------------------------------
+
+function Settings:_progressIndicatorsSubItems()
+    local CoverProgress = require("bookshelf_cover_progress")
+    local Colour        = require("bookshelf_colour")
+    local Screen        = require("device").screen
+
+    local function markDirty()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+
+    local function valueLabel(field)
+        local raw = CoverProgress.rawColours()[field]
+        if not raw then return _("default") end
+        if raw.hex then return raw.hex end
+        if raw.grey then
+            local pct = math.floor((0xFF - raw.grey) * 100 / 0xFF + 0.5)
+            return pct .. "%"
+        end
+        return _("default")
+    end
+
+    -- Picker dispatch: palette on colour devices, % black nudge on greyscale.
+    local function pickColour(field, default_pct, title, touchmenu_instance)
+        local raw_key  = "bookshelf_progress_" .. field    -- "_fill" / "_track"
+        local raw      = G_reader_settings:readSetting(raw_key)
+        local original = raw
+
+        if Screen:isColorEnabled() then
+            local current_hex
+            if raw and raw.hex then current_hex = raw.hex
+            elseif raw and raw.grey then
+                local g = string.format("%02X", raw.grey)
+                current_hex = "#" .. g .. g .. g
+            end
+            self._plugin:showColourPicker(
+                title, current_hex, Colour.defaultHexFor(field),
+                function(new_hex)  -- on_apply
+                    G_reader_settings:saveSetting(raw_key, Colour.toStorageShape(new_hex))
+                    G_reader_settings:flush()
+                    markDirty()
+                end,
+                function()  -- on_default
+                    G_reader_settings:delSetting(raw_key)
+                    G_reader_settings:flush()
+                    markDirty()
+                end,
+                function()  -- on_revert
+                    if original == nil then
+                        G_reader_settings:delSetting(raw_key)
+                    else
+                        G_reader_settings:saveSetting(raw_key, original)
+                    end
+                    G_reader_settings:flush()
+                    markDirty()
+                end,
+                touchmenu_instance)
+            return
+        end
+
+        -- Greyscale: % black nudge dialog. Task 12 ensures self:showNudgeDialog exists.
+        local byte
+        if raw and raw.grey then byte = raw.grey end
+        local current = byte and math.floor((0xFF - byte) * 100 / 0xFF + 0.5) or default_pct
+        self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
+            function(val)
+                G_reader_settings:saveSetting(raw_key, { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) })
+                G_reader_settings:flush()
+                markDirty()
+            end,
+            nil, nil, nil, touchmenu_instance,
+            function()
+                G_reader_settings:delSetting(raw_key)
+                G_reader_settings:flush()
+                markDirty()
+            end,
+            _("Default"))
+    end
+
+    return {
+        {
+            text = _("Show progress indicators"),
+            checked_func = function()
+                local v = G_reader_settings:readSetting("bookshelf_progress_enabled")
+                if v == nil then return true end
+                return v == true
+            end,
+            callback = function()
+                local v = G_reader_settings:readSetting("bookshelf_progress_enabled")
+                if v == nil then v = true end
+                G_reader_settings:saveSetting("bookshelf_progress_enabled", not v)
+                G_reader_settings:flush()
+                markDirty()
+            end,
+            separator = true,
+        },
+        {
+            text_func = function()
+                return _("Read color") .. ": " .. valueLabel("fill")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("fill", 75, _("Read color (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                G_reader_settings:delSetting("bookshelf_progress_fill")
+                G_reader_settings:flush()
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                return _("Unread color") .. ": " .. valueLabel("track")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("track", 25, _("Unread color (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                G_reader_settings:delSetting("bookshelf_progress_track")
+                G_reader_settings:flush()
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text = _("Reset colours to defaults"),
+            separator = true,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                G_reader_settings:delSetting("bookshelf_progress_fill")
+                G_reader_settings:delSetting("bookshelf_progress_track")
+                G_reader_settings:flush()
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+    }
+end
+
 -- Bookends-style nudge dialog for the hero font scale. Each tap on -/+ saves
 -- the new scale, kicks the live BookshelfWidget rebuild, and refreshes the
 -- dialog so the value updates. Cancel reverts to the snapshot taken on open;
