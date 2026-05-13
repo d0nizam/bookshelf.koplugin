@@ -154,6 +154,14 @@ function BookshelfWidget:init()
         self.key_events.NextPage = { { Device.input.group.PgFwd } }
         self.key_events.PrevPage = { { Device.input.group.PgBack } }
     end
+    if Device:hasDPad() then
+        self.key_events = self.key_events or {}
+        self.key_events.BSFocusUp    = { { "Up"    } }
+        self.key_events.BSFocusDown  = { { "Down"  } }
+        self.key_events.BSFocusLeft  = { { "Left"  } }
+        self.key_events.BSFocusRight = { { "Right" } }
+        self.key_events.BSKbPress    = { { "Press" } }
+    end
 
     -- (Top-zone tap/swipe to open the FM menu is handled by the FileManager
     -- touch-zone passthrough in handleEvent below; no need to mirror those
@@ -2542,6 +2550,52 @@ function BookshelfWidget:_chipNeighbour(direction)
     return keys[((idx - 1 + direction) % n) + 1]
 end
 
+function BookshelfWidget:_chipKeyNeighbour(key, direction)
+    local keys = self._active_chip_keys
+    if not keys or #keys <= 1 then return nil end
+    local idx
+    for i, k in ipairs(keys) do
+        if k == key then idx = i; break end
+    end
+    if not idx then return keys[1] end
+    local n = #keys
+    return keys[((idx - 1 + direction) % n) + 1]
+end
+
+function BookshelfWidget:_moveCursor(delta)
+    local items = self._page_items
+    if not items or #items == 0 then return true end
+    local n_cols    = self:_nCols()
+    local view_size = self:_nShelves() * n_cols
+    local cur       = self._cursor_idx or 1
+    local new_idx   = cur + delta
+
+    if new_idx < 1 then
+        if self.page > 1 then
+            self.page        = self.page - 1
+            self._cursor_idx = view_size
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    if new_idx > view_size then
+        local total = self._total_pages or 1
+        if self.page < total then
+            self.page        = self.page + 1
+            self._cursor_idx = 1
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    if not items[new_idx] then return true end
+
+    self._cursor_idx = new_idx
+    self:_swapShelvesInPlace()
+    return true
+end
+
 -- _setActiveChip(key) — switch tabs as if the user tapped a chip.
 -- Mirrors the on_change closure in _rebuild so swipe-cycling and tap
 -- both produce identical state transitions.
@@ -2806,6 +2860,13 @@ function BookshelfWidget:onBookshelfToggleHero()
     self:_rebuild()
     UIManager:setDirty(self, "ui")
     return true
+end
+
+function BookshelfWidget:_clearDpadFocus()
+    self._focus_zone        = nil
+    self._cursor_idx        = nil
+    self._chip_cursor_key   = nil
+    self._footer_cursor_btn = nil
 end
 
 -- North-swipe anywhere on screen: collapse hero to compact strip, expand
