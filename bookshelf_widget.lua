@@ -1536,6 +1536,9 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         on_tap       = function(b) self:_openBook(b) end,
         on_hold      = function(b) self:_openBookMenu(b) end,
     }
+    -- Keep a stable reference to the bare HeroCard so _swapHeroRightColumnInPlace
+    -- can reach replaceRightColumn regardless of whether a FocusRing wraps us.
+    self._hero_card = card
     if self._focus_zone ~= "hero" then return card end
     local OverlapGroup = require("ui/widget/overlapgroup")
     local Widget       = require("ui/widget/widget")
@@ -2264,7 +2267,7 @@ end
 -- region might have changed).
 function BookshelfWidget:_swapHeroRightColumnInPlace(regions, region_hint)
     if not self._hero_parent then return false end
-    local hero = self._hero_parent[1]
+    local hero = self._hero_card or self._hero_parent[1]
     if not hero or not hero.replaceRightColumn then return false end
     local current = self._preview_book or (Repo.getCurrent and Repo.getCurrent()) or hero.book
     if current and Repo.enrichStats then
@@ -2428,8 +2431,8 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
     local function fire()
         self._gated_repaint_pending = nil
         if UIManager:getTopmostVisibleWidget() ~= self then return end
-        if not (self._hero_parent and self._hero_parent[1]
-                and self._hero_parent[1].replaceRightColumn) then return end
+        local _hc = self._hero_card or (self._hero_parent and self._hero_parent[1])
+        if not (_hc and _hc.replaceRightColumn) then return end
         if not self:_anyActiveRegionUses(tokens) then return end
         local Regions = require("bookshelf_hero_regions")
         -- Every gated repaint here is driven by status-line state
@@ -2535,10 +2538,10 @@ function BookshelfWidget:onResume()
     -- Repaint immediately so post-wake clock + batt + wifi state shows
     -- without waiting for the next minute boundary. Hint "status" so
     -- the panel refresh stays scoped to the status strip.
+    local _hc_resume = self._hero_card or (self._hero_parent and self._hero_parent[1])
     if UIManager:getTopmostVisibleWidget() == self
-            and self._hero_parent
-            and self._hero_parent[1]
-            and self._hero_parent[1].replaceRightColumn then
+            and _hc_resume
+            and _hc_resume.replaceRightColumn then
         local Regions = require("bookshelf_hero_regions")
         self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end
