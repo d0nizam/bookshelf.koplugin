@@ -2600,6 +2600,264 @@ function BookshelfWidget:_moveCursor(delta)
     return true
 end
 
+function BookshelfWidget:_swapFooterInPlace()
+    if not self._inner_vgroup or not self._shelf_dims then return end
+    local d      = self._shelf_dims
+    local total  = self._total_pages or 1
+    local footer = self:_buildPaginationFooter(d.content_w, d.label_h, total)
+    local old    = self._inner_vgroup[d.footer_idx]
+    self._inner_vgroup[d.footer_idx] = footer
+    if self._inner_vgroup.resetLayout then self._inner_vgroup:resetLayout() end
+    UIManager:nextTick(function()
+        if old and old.free then pcall(function() old:free() end) end
+    end)
+    UIManager:setDirty(self, "ui")
+end
+
+function BookshelfWidget:onBSFocusUp()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        local n_cols = self:_nCols()
+        if self._cursor_idx and self._cursor_idx <= n_cols then
+            if not self._chip_strip_hidden then
+                self._focus_zone      = "chips"
+                self._chip_cursor_key = self.chip
+                if self._chip_strip and self._chip_strip.focusCursor then
+                    self._chip_strip:focusCursor(self._chip_cursor_key)
+                end
+            elseif not self._expanded then
+                self._focus_zone = "hero"
+                self._cursor_idx = nil
+                self:_swapHeroInPlace()
+            end
+            return true
+        end
+        return self:_moveCursor(-n_cols)
+    end
+
+    if self._focus_zone == "chips" then
+        if not self._expanded then
+            if self._chip_strip and self._chip_strip.focusCursor then
+                self._chip_strip:focusCursor(nil)
+            end
+            self._chip_cursor_key = nil
+            self._focus_zone      = "hero"
+            self:_swapHeroInPlace()
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        local items    = self._page_items or {}
+        local last_idx = 0
+        for i = #items, 1, -1 do if items[i] then last_idx = i; break end end
+        self._footer_cursor_btn = nil
+        self._focus_zone        = "grid"
+        self._cursor_idx        = last_idx > 0 and last_idx or 1
+        self:_swapFooterInPlace()
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    return true
+end
+
+function BookshelfWidget:onBSFocusDown()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "hero" then
+        self._focus_zone = nil
+        self:_swapHeroInPlace()
+        if not self._chip_strip_hidden then
+            self._focus_zone      = "chips"
+            self._chip_cursor_key = self.chip
+            if self._chip_strip and self._chip_strip.focusCursor then
+                self._chip_strip:focusCursor(self._chip_cursor_key)
+            end
+        else
+            self._focus_zone = "grid"
+            self._cursor_idx = 1
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    if self._focus_zone == "chips" then
+        if self._chip_strip and self._chip_strip.focusCursor then
+            self._chip_strip:focusCursor(nil)
+        end
+        self._chip_cursor_key = nil
+        self._focus_zone      = "grid"
+        self._cursor_idx      = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        local n_shelves      = self:_nShelves()
+        local n_cols         = self:_nCols()
+        local last_row_start = (n_shelves - 1) * n_cols + 1
+        if self._cursor_idx and self._cursor_idx >= last_row_start then
+            local total = self._total_pages or 1
+            self._footer_cursor_btn = (self.page < total) and "next" or "prev"
+            self._focus_zone        = "footer"
+            self:_swapFooterInPlace()
+            return true
+        end
+        return self:_moveCursor(n_cols)
+    end
+
+    return true
+end
+
+function BookshelfWidget:onBSFocusLeft()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        return self:_moveCursor(-1)
+    end
+
+    if self._focus_zone == "chips" then
+        local key = self:_chipKeyNeighbour(self._chip_cursor_key, -1)
+        if key and key ~= self._chip_cursor_key then
+            self._chip_cursor_key = key
+            if self._chip_strip and self._chip_strip.focusCursor then
+                self._chip_strip:focusCursor(key)
+            end
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        if self.page > 1 then
+            self._footer_cursor_btn = "prev"
+            self:_swapFooterInPlace()
+        end
+        return true
+    end
+
+    return true
+end
+
+function BookshelfWidget:onBSFocusRight()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        return self:_moveCursor(1)
+    end
+
+    if self._focus_zone == "chips" then
+        local key = self:_chipKeyNeighbour(self._chip_cursor_key, 1)
+        if key and key ~= self._chip_cursor_key then
+            self._chip_cursor_key = key
+            if self._chip_strip and self._chip_strip.focusCursor then
+                self._chip_strip:focusCursor(key)
+            end
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        local total = self._total_pages or 1
+        if self.page < total then
+            self._footer_cursor_btn = "next"
+            self:_swapFooterInPlace()
+        end
+        return true
+    end
+
+    return true
+end
+
+function BookshelfWidget:onBSKbPress()
+    if self._focus_zone == "hero" then
+        local book = self._preview_book
+            or (Repo.getCurrent and Repo.getCurrent())
+        if book then
+            self:_clearDpadFocus()
+            self:_swapHeroInPlace()
+            self:_openBook(book)
+        end
+        return true
+    end
+
+    if self._focus_zone == "chips" then
+        local key = self._chip_cursor_key
+        if key then
+            self:_clearDpadFocus()
+            self:_setActiveChip(key)
+            self._focus_zone = "grid"
+            self._cursor_idx = 1
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        local idx  = self._cursor_idx
+        local item = idx and self._page_items and self._page_items[idx]
+        if not item then return true end
+        self:_clearDpadFocus()
+        if item.filepath then
+            self:_openBook(item)
+        elseif item.kind == "folder" then
+            self:_expandFolder(item)
+        elseif item.kind == "author" then
+            self:_expandAuthor(item)
+        elseif item.kind == "genre" then
+            self:_expandGenre(item)
+        elseif item.kind == "tag" then
+            self:_expandTag(item)
+        elseif item.books then
+            self:_expandSeries(item)
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        local btn   = self._footer_cursor_btn
+        local total = self._total_pages or 1
+        local view_size = self:_nShelves() * self:_nCols()
+        if btn == "next" and self.page < total then
+            self._footer_cursor_btn = nil
+            self._focus_zone        = "grid"
+            self._cursor_idx        = 1
+            self.page               = self.page + 1
+            self:_swapShelvesInPlace()
+        elseif btn == "prev" and self.page > 1 then
+            self._footer_cursor_btn = nil
+            self._focus_zone        = "grid"
+            self._cursor_idx        = view_size
+            self.page               = self.page - 1
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    return true
+end
+
 -- _setActiveChip(key) — switch tabs as if the user tapped a chip.
 -- Mirrors the on_change closure in _rebuild so swipe-cycling and tap
 -- both produce identical state transitions.
