@@ -129,6 +129,19 @@ function Bookshelf:init()
     -- (no document currently being opened), close FM and present Bookshelf.
     if G_reader_settings:readSetting("start_with") == "bookshelf"
             and not (self.ui and self.ui.document) then
+        -- Bookshelf depends on CoverBrowser's BookInfoManager. If
+        -- CoverBrowser is disabled, every code path that touches BIM
+        -- throws — pre-#49 this manifested as a crash loop on the
+        -- onShow handler. Detect at init and bail with a notification
+        -- so the user lands on plain FM and knows why.
+        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
+        if ok_repo and Repo and Repo.hasBookInfoManager
+                and not Repo.hasBookInfoManager() then
+            local Notification = require("ui/widget/notification")
+            Notification:notify(_("Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."),
+                Notification.SOURCE_ALWAYS_SHOW)
+            return
+        end
         -- Capture FileManager.instance at schedule time. By the time the tick
         -- fires we want a known reference, not a fresh require lookup that
         -- could see different state.
@@ -772,6 +785,14 @@ function Bookshelf:onShow()
     if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
     if self.ui and self.ui.document then return end
     if _live_widget and UIManager:isWidgetShown(_live_widget) then return end
+    -- CoverBrowser disabled: every code path that touches BIM crashes.
+    -- Bail silently here (init showed the notification once); just let
+    -- FM stay visible. (#49.)
+    local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
+    if not (ok_repo and Repo and Repo.hasBookInfoManager
+            and Repo.hasBookInfoManager()) then
+        return
+    end
     self:show()
 end
 

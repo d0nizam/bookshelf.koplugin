@@ -63,7 +63,28 @@ local SUPPORTED_EXT = {
 
 local function getReadHistory()  return require("readhistory") end
 local function getCollections()  return require("readcollection") end
-local function getBookInfoMgr()  return require("bookinfomanager") end
+-- BookInfoManager comes from CoverBrowser. When CoverBrowser is disabled
+-- (Settings > More plugins), the module isn't on the lua path and the
+-- raw require() throws. pcall it instead, cache the result, return nil
+-- gracefully. Callers check for nil and bail. Without BIM Bookshelf
+-- can't function meaningfully (no covers, no metadata extraction), so
+-- main.lua also shows a one-time notification explaining the dependency.
+local _bim_cache
+local function getBookInfoMgr()
+    if _bim_cache ~= nil then
+        return _bim_cache or nil
+    end
+    local ok, mod = pcall(require, "bookinfomanager")
+    _bim_cache = (ok and mod) or false
+    return _bim_cache or nil
+end
+
+-- Public: true if BookInfoManager is available (CoverBrowser enabled).
+-- main.lua queries this at init to decide whether to take over the home
+-- screen or bail with a "Bookshelf requires CoverBrowser" notification.
+function Repo.hasBookInfoManager()
+    return getBookInfoMgr() ~= nil
+end
 local function getDocSettings()  return require("docsettings") end
 
 -- Resolve the user's library root from G_reader_settings. Returns the
@@ -266,6 +287,7 @@ end
 function Repo.buildBookMeta(filepath)
     if not filepath then return nil end
     local bim  = getBookInfoMgr()
+    if not bim then return nil end  -- CoverBrowser disabled (#49)
     local info = bim:getBookInfo(filepath, true) or {}
     -- Calibre is the PRIMARY source for textual metadata when a
     -- metadata.calibre file is available — it already has clean,
@@ -438,6 +460,7 @@ end
 local function _buildBookMetaLight(fp)
     if not fp then return nil end
     local bim  = getBookInfoMgr()
+    if not bim then return nil end  -- CoverBrowser disabled (#49)
     local info = bim:getBookInfo(fp, false) or {}
     return _buildLightMetaFromInfo(fp, info)
 end
