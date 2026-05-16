@@ -748,6 +748,15 @@ function BookshelfWidget:_rebuild()
                             and Repo.buildBook(self._preview_book.filepath))
                             or self._preview_book
                             or (Repo.getCurrent and Repo.getCurrent())
+        -- Hand the freshly-built probe record off to _buildHero so it
+        -- doesn't pay another DocSettings:open() for the same filepath
+        -- in the same rebuild cycle. Only when the probe built a
+        -- preview-book record (not the fallback to getCurrent), so the
+        -- cache is precisely scoped. Cleared in _buildHero after use.
+        if probe_book and self._preview_book
+                and probe_book.filepath == self._preview_book.filepath then
+            self._hero_book_cache = probe_book
+        end
         local probe_row  = probe_book and HeroCard.buildStatusRow(
                                 probe_book, self:_buildDeviceState(),
                                 content_w, false)
@@ -1459,24 +1468,6 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
     if hero_fp then maybe_queue(hero_fp) end
     logger.dbg(string.format("[bookshelf perf] _kickOffMeta: queued=%d displayed=%d",
         #files, #(items or {})))
-    -- Per-extension breakdown of what's being queued: helps confirm whether
-    -- the new v1.1.2 extensions (.docx/.doc/.rtf/.odt/.azw) are dominating
-    -- the queue on this device (which would make BIM extraction far heavier
-    -- than on v1.1.1).
-    do
-        local ext_count = {}
-        for _, q in ipairs(files) do
-            local ext = (q.filepath or ""):match("%.([^%.]+)$")
-            if ext then
-                ext = ext:lower()
-                ext_count[ext] = (ext_count[ext] or 0) + 1
-            end
-        end
-        local parts = {}
-        for ext, n in pairs(ext_count) do
-            parts[#parts + 1] = ext .. "=" .. n
-        end
-    end
     if #files > 0 then
         UIManager:nextTick(function()
             -- If CoverBrowser already has a background job running, don't
@@ -1873,7 +1864,19 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
     local _perf_t0 = _gettime()
     local current
     if self._preview_book and self._preview_book.filepath then
-        current = Repo.buildBook(self._preview_book.filepath) or self._preview_book
+        -- _rebuild's expanded-mode probe stashed a freshly-built record
+        -- for this same filepath -- reuse it instead of paying
+        -- DocSettings:open() a second time. Cache is consumed
+        -- destructively so a subsequent _swapHeroInPlace / previewBook
+        -- rebuild gets fresh data.
+        local cached = self._hero_book_cache
+        if cached and cached.filepath == self._preview_book.filepath then
+            current = cached
+            self._hero_book_cache = nil
+        else
+            current = Repo.buildBook(self._preview_book.filepath) or self._preview_book
+            self._hero_book_cache = nil
+        end
         self._preview_book = current
     else
         current = Repo.getCurrent()
@@ -2750,7 +2753,18 @@ function BookshelfWidget:_swapHeroInPlace()
             pcall(function() old_hero:free() end)
         end)
     end
-    UIManager:setDirty(self, "ui")
+    -- Scope the refresh to the hero's painted rect so the chip strip and
+    -- shelves below don't flash. The peer right-column-only path is
+    -- already scoped (issue #35); this one was missed. Falls back to a
+    -- full-widget refresh when the old hero's painted dimen isn't
+    -- available (e.g. first-paint races where the swap fires before the
+    -- previous hero rendered).
+    local scope = old_hero and old_hero.dimen
+    if scope then
+        UIManager:setDirty(self, function() return "ui", scope end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
 end
 
 -- Live-preview hook used by the hero line editor. Rebuilds only the
@@ -3018,6 +3032,16 @@ function BookshelfWidget:_stopStatusTimer()
     if self._gated_repaint_pending then
         UIManager:unschedule(self._gated_repaint_pending)
         self._gated_repaint_pending = nil
+    end
+    -- Cancel the 150ms deferred shelf swap too. _openBook calls this
+    -- function before opening the reader; without the cancel, a
+    -- softRefresh that scheduled _swapShelvesInPlace fires DURING the
+    -- reader's startup paint and marks the bookshelf dirty under the
+    -- reader -- wasted work plus a potential extra EPDC cycle while
+    -- the reader is trying to claim the screen.
+    if self._soft_refresh_shelves_fn then
+        UIManager:unschedule(self._soft_refresh_shelves_fn)
+        self._soft_refresh_shelves_fn = nil
     end
 end
 

@@ -1001,25 +1001,6 @@ local function cachedWalk(home, depth)
         for _ in pairs(dirs) do dir_count = dir_count + 1 end
         logger.dbg(string.format("[bookshelf perf] cachedWalk: MISS(%s) walk=%.0fms files=%d dirs=%d depth=%s",
             stale_reason, _dt, #fresh, dir_count, tostring(depth)))
-        -- Per-extension breakdown of the freshly-walked library. Helps
-        -- confirm whether the new v1.1.2 extensions are pulling in a lot
-        -- of files we hadn't seen on v1.1.1 (which would explain heavy
-        -- BIM extraction load + Android ANRs).
-        do
-            local ext_count = {}
-            for i = 1, #fresh do
-                local fp = fresh[i].fp or ""
-                local ext = fp:match("%.([^%.]+)$")
-                if ext then
-                    ext = ext:lower()
-                    ext_count[ext] = (ext_count[ext] or 0) + 1
-                end
-            end
-            local parts = {}
-            for ext, n in pairs(ext_count) do
-                parts[#parts + 1] = ext .. "=" .. n
-            end
-        end
     else
         logger.dbg(string.format("[bookshelf perf] cachedWalk: HIT files=%d ttl_left=%ds",
             #entry.list, entry.expires_at - now))
