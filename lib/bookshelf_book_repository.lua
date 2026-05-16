@@ -2706,12 +2706,31 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit)
     -- uniformly. Group kinds (series/authors/genres/tags/formats/
     -- ratings) ARE early-returned because the filter is per-book and
     -- a group view returns groups, not books.
+    --
+    -- sort_priority gate for the legacy book-list fetchers: they use a
+    -- single-key sort_<chip> setting with a small whitelist (date_added /
+    -- title / recently_read on favorites, etc), and the v2 chip editor
+    -- writes only to tab.sort_priority -- never to the legacy key. So a
+    -- chip with sort_priority = [series_name, series_index, title]
+    -- silently fell back to the fetcher's default ordering. Route through
+    -- the predicate path whenever sort_priority is non-empty so the full
+    -- SortEngine drives the order. Reported by user feedback on v2.0.1.
+    --
+    -- Exception: kind == "all" stays on the legacy fetcher even with a
+    -- custom sort_priority, because Repo.getAll produces FOLDER cards in
+    -- addition to books (Home chip's folder-summary view). The predicate
+    -- path returns books only and would silently strip the folder cards.
+    -- Honouring sort_priority on Home is a follow-up; the user's reported
+    -- case (Favourites) is covered.
     local has_status_filter = filter and filter.statuses and next(filter.statuses) ~= nil
+    local has_custom_sort   = sort_priority and #sort_priority > 0
     if not has_status_filter then
         if kind == "all"       then return Repo.getAll(nil, limit, offset)         end
-        if kind == "recent"    then return Repo.getRecent(limit, offset)           end
-        if kind == "latest"    then return Repo.getLatest(limit, offset)           end
-        if kind == "favorites" then return Repo.getFavorites(limit, offset)        end
+        if not has_custom_sort then
+            if kind == "recent"    then return Repo.getRecent(limit, offset)       end
+            if kind == "latest"    then return Repo.getLatest(limit, offset)       end
+            if kind == "favorites" then return Repo.getFavorites(limit, offset)    end
+        end
     end
     if kind == "series"    then return Repo.getSeriesGroups(limit, offset, sort_priority) end
     if kind == "authors"   then return Repo.getAuthors(limit, offset, sort_priority)      end
