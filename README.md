@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/bookshelf-logo-dark.png">
+    <img alt="Bookshelf" src="assets/bookshelf-logo.png" width="320">
+  </picture>
+</p>
+
 # Bookshelf
 
 A nice-looking home screen for KOReader. Pick a book from your shelf and read
