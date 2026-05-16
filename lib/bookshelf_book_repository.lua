@@ -719,6 +719,15 @@ local _light_meta_cache = {}  -- { [key] = { map = {[fp]=record}, expires_at = n
 local PROGRESS_CACHE_TTL = 120  -- seconds
 local _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 
+-- Forward declarations so invalidateWalkCache below resolves these to the
+-- module-local tables created later (Repo.folderHasBooks's memo at
+-- ~line 1206 and _normalizeGenre's memo at ~line 1994). Without these
+-- forward decls, the assignments inside invalidateWalkCache would write
+-- to globals (not the locals the readers consult), so the invalidation
+-- would silently no-op.
+local _folderHasBooks_cache
+local _normalize_genre_cache
+
 function Repo.invalidateWalkCache()
     _walk_cache       = {}
     _series_cache     = {}
@@ -730,6 +739,19 @@ function Repo.invalidateWalkCache()
     _bySource_cache   = {}
     _light_meta_cache = {}
     _progress_cache   = {}
+    -- _folderHasBooks_cache: memoizes whether a folder contains a book at
+    -- any depth. Previously preserved across invalidations so the negative-
+    -- result-for-an-empty-folder didn't have to re-walk. Trouble: when a
+    -- book is *added* to a folder that previously had none, the cache
+    -- returns the stale "false" and the folder is hidden from Home until
+    -- the session restarts. Wiping here costs a re-walk on the next render
+    -- but keeps Home in sync with the user's actual library.
+    _folderHasBooks_cache = {}
+    -- _normalize_genre_cache: production it's harmless to keep (genre
+    -- strings don't change), but per-test state pollution breaks isolation
+    -- if a test injects different genre keys under the same input shape.
+    -- Negligible production cost to rebuild.
+    _normalize_genre_cache = {}
     -- Force getBookInfoMgr to re-resolve via require on its next call. In
     -- production this is a no-op cost (require's own cache returns the same
     -- module instantly), but it lets tests that swap the bookinfomanager
@@ -1190,7 +1212,9 @@ end
 -- folderHasBooks(path): true if `path` (recursively) contains at least one
 -- supported book file. Short-circuits on first hit; memoized per-session.
 -- Used by getAll to suppress empty folder cards before the user sees them.
-local _folderHasBooks_cache = {}
+-- Re-assignment (not `local`) so invalidateWalkCache's forward-declared
+-- name at the top of the file resolves to this same upvalue.
+_folderHasBooks_cache = {}
 
 function Repo.folderHasBooks(path)
     if not path or path == "" then return false end
@@ -1977,8 +2001,9 @@ end
 --
 -- Only applied for group_kind == "genre" in _buildGroups. Authors keep
 -- their case-sensitive identity (case is part of an author's identity
--- on some libraries with stylized spellings).
-local _normalize_genre_cache = {}
+-- on some libraries with stylized spellings). Re-assignment (not
+-- `local`) so invalidateWalkCache's forward decl resolves here.
+_normalize_genre_cache = {}
 local function _normalizeGenre(s)
     if not s or s == "" then return "" end
     local cached = _normalize_genre_cache[s]
@@ -2963,10 +2988,19 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit)
             end
             candidates = loadCandidatesByPredicate(function(b) return set[b.filepath] end)
         elseif kind == "tag" then
+            -- Book records carry BIM/Calibre tag data under b.genres (the
+            -- field name is unified across the cb.tags + cb.keywords +
+            -- BIM-keywords sources in buildBookMeta). The predicate read
+            -- b.tags, which no record ever sets, so this dispatch was
+            -- silently empty. No production UI creates source.kind="tag"
+            -- today (the chip editor's "Specific tag…" writes
+            -- kind="collection"), but the drilldown payload in
+            -- bookshelf_widget.lua does use kind="tag" and a future
+            -- migration / settings edit could route through this branch.
             local target = source.id
             candidates = loadCandidatesByPredicate(function(b)
-                if type(b.tags) ~= "table" then return false end
-                for _, t in ipairs(b.tags) do if t == target then return true end end
+                if type(b.genres) ~= "table" then return false end
+                for _i, t in ipairs(b.genres) do if t == target then return true end end
                 return false
             end)
         elseif kind == "genre" then
