@@ -422,15 +422,18 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- (book.book_pct nil — note that 0 is *truthy* in Lua so a
     -- briefly-opened-but-unread book at 0% still keeps its %bar) the
     -- bar would render at 0% fill, which reads as broken rather than
-    -- meaningful. Strip %bar from the expanded text in that case so the
-    -- region either collapses entirely (default template, leaves only
-    -- whitespace) or reduces to whatever surrounding text the user
-    -- typed.
+    -- meaningful. Strip both elastic tokens (%bar AND %spacer) from the
+    -- expanded text in that case so the region either collapses
+    -- entirely (default template, leaves only whitespace) or reduces to
+    -- whatever surrounding text the user typed. Without the %spacer
+    -- strip, a template like "Reading%spacer%book_pct" on a never-
+    -- opened book renders as a floating "Reading" word with dead space
+    -- to its right instead of collapsing.
     if not regions.progress.disabled then
         local progress_text = Tokens.expand(regions.progress.template, book, state)
         progress_text = progress_text:gsub("%[/?[biu]%]", "")
         if not (book and book.book_pct) then
-            progress_text = progress_text:gsub("%%bar", "")
+            progress_text = progress_text:gsub("%%bar", ""):gsub("%%spacer", "")
         end
         if not Tokens.isEmpty(progress_text) then
             right_bottom[#right_bottom + 1] = buildLine(progress_text, regions.progress, right_w, book)
