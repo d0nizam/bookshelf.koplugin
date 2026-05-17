@@ -1093,11 +1093,17 @@ function Settings:_about()
     -- than Size.border.thin) and Size.radius.window for rounded
     -- corners. Earlier the popup used thin + square, which read as
     -- subtly out-of-family next to the rest of the plugin's dialogs.
+    -- Per-side padding: tighter at the top because the BOOKSHELF logo's
+    -- bold glyphs carry their own visual mass and don't need as much
+    -- breathing room above them. Equal padding made the popup read as
+    -- top-heavy in the screenshot. Bottom keeps the full FRAME_PAD so
+    -- the URL has the same air the description gets.
     local frame = FrameContainer:new{
-        radius     = Size.radius.window,
-        padding    = FRAME_PAD,
-        margin     = 0,
-        background = Blitbuffer.COLOR_WHITE,
+        radius        = Size.radius.window,
+        padding       = FRAME_PAD,
+        padding_top   = math.floor(FRAME_PAD * 0.5),
+        margin        = 0,
+        background    = Blitbuffer.COLOR_WHITE,
         column,
     }
 
