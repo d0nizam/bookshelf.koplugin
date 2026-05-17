@@ -1084,8 +1084,13 @@ function Settings:_about()
         callback   = open_github,
     }
 
+    -- Frame styling matches the other Bookshelf modals (chip editor,
+    -- hero line editor): default Size.border.window thickness (thicker
+    -- than Size.border.thin) and Size.radius.window for rounded
+    -- corners. Earlier the popup used thin + square, which read as
+    -- subtly out-of-family next to the rest of the plugin's dialogs.
     local frame = FrameContainer:new{
-        bordersize = Size.border.thin,
+        radius     = Size.radius.window,
         padding    = Size.padding.large,
         margin     = 0,
         background = Blitbuffer.COLOR_WHITE,
