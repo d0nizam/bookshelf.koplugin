@@ -324,6 +324,16 @@ function Settings:_heroSubItems()
             separator = true,
         },
     }
+    -- Translation extraction markers: Regions.LABELS values reach the
+    -- runtime via the _(Regions.LABELS[key]) dynamic lookup below, which
+    -- xgettext cannot follow. Most labels ("Status line", "Title", ...)
+    -- pick up translations because the same string appears in a direct
+    -- _() call elsewhere, but "Rating (interactive)" is unique to this
+    -- surface. Listing it here is dead code at runtime but lets xgettext
+    -- emit the msgid so translators see it.
+    if false then
+        local _ignore = { _("Rating (interactive)") }
+    end
     for _i, key in ipairs(Regions.ORDER) do
         items[#items + 1] = {
             keep_menu_open = true,
