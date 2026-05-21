@@ -1955,6 +1955,25 @@ function BookshelfWidget:_buildDeviceState()
             local ok, v = pcall(function() return PowerD:frontlightIntensity() end)
             if ok then light = v end
         end
+        -- PowerD keeps fl_intensity at its prior value when the user
+        -- toggles the frontlight OFF -- only is_fl_on flips and the
+        -- HW gets setIntensityHW(fl_min). frontlightIntensity() reads
+        -- self.fl_intensity directly (no live HW probe), so a fresh
+        -- read after toggle-off returns the same non-zero value the
+        -- light had before. Override to 0 in the off state so:
+        --   * [if:light] gates the status section out cleanly,
+        --   * %light_icon picks the lightbulb-outline (off) glyph
+        --     (s.light > 0 check in Tokens.expanders.light_icon),
+        --   * %light_pct calculates to 0 ("0%" in custom templates).
+        local fl_on
+        if PowerD.isFrontlightOn then
+            local ok, v = pcall(function() return PowerD:isFrontlightOn() end)
+            if ok then fl_on = v end
+        end
+        if fl_on == nil and PowerD.is_fl_on ~= nil then
+            fl_on = PowerD.is_fl_on
+        end
+        if fl_on == false then light = 0 end
         -- Kindle PW5 frontlight maxes out at 24, Kobo varies. Mirror
         -- bookends's normalisation so users get a familiar 0–100 scale
         -- via %light_pct (the raw %light is still available).
