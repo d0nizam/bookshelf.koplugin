@@ -1351,6 +1351,7 @@ function Bookshelf:deletePluginSettings()
         "show_close_msg", "show_series_num",
         "progress_fill", "progress_track", "bookmark_color",
         "badge_fg", "badge_bg",
+        "folder_overlay_bg", "folder_overlay_fg",
         "progress_badge_enabled", "progress_bar_enabled",
         "progress_bookmark_enabled", "progress_enabled",
         "sort_all_mixed", "sort_all_reverse",

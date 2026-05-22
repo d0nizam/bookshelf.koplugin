@@ -822,6 +822,36 @@ function Settings:_coloursSubItems()
             end,
         },
         {
+            text_func = function()
+                return _("Folder overlay background") .. ": " .. valueLabel("folder_bg")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("folder_overlay_bg", "folder_bg", 20,
+                    _("Folder overlay background (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                BookshelfSettings.delete("folder_overlay_bg")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                return _("Folder overlay foreground") .. ": " .. valueLabel("folder_fg")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("folder_overlay_fg", "folder_fg", 100,
+                    _("Folder overlay foreground (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                BookshelfSettings.delete("folder_overlay_fg")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
             text = _("Reset to default colours"),
             separator = true,
             keep_menu_open = true,
@@ -831,6 +861,8 @@ function Settings:_coloursSubItems()
                 BookshelfSettings.delete("bookmark_color")
                 BookshelfSettings.delete("badge_fg")
                 BookshelfSettings.delete("badge_bg")
+                BookshelfSettings.delete("folder_overlay_bg")
+                BookshelfSettings.delete("folder_overlay_fg")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,

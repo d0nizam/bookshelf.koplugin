@@ -309,6 +309,15 @@ local DEFAULT_BADGE_BG = { grey = 0xFF }
 -- Returns colour values resolved to Blitbuffer objects for the current
 -- screen mode. Called per cover paint; relies on bookshelf_colour's
 -- internal hex cache to keep the work cheap.
+--
+-- folder_bg / folder_fg differ from the other fields: they return nil
+-- when the setting is unset so the FolderCard render path can fall back
+-- to its existing device-aware defaults (manilla on colour panels, dark
+-- grey on B&W e-ink, see lib/bookshelf_folder_card.lua's CARDBOARD
+-- constant). A static hex default here can't represent that split, and
+-- mapping it through parseColorValue's Rec.601 luminance fold would land
+-- B&W users on light grey (~0xCE) instead of the dark grey they have
+-- today.
 function M.resolvedColours()
     local is_colour    = Device.screen:isColorEnabled()
     local fill_raw     = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL
@@ -316,24 +325,32 @@ function M.resolvedColours()
     local bookmark_raw = BookshelfSettings.read("bookmark_color") or DEFAULT_BOOKMARK
     local badge_fg_raw = BookshelfSettings.read("badge_fg")       or DEFAULT_BADGE_FG
     local badge_bg_raw = BookshelfSettings.read("badge_bg")       or DEFAULT_BADGE_BG
+    local folder_bg_raw = BookshelfSettings.read("folder_overlay_bg")
+    local folder_fg_raw = BookshelfSettings.read("folder_overlay_fg")
     return {
-        fill     = Colour.parseColorValue(fill_raw,     is_colour),
-        track    = Colour.parseColorValue(track_raw,    is_colour),
-        bookmark = Colour.parseColorValue(bookmark_raw, is_colour),
-        badge_fg = Colour.parseColorValue(badge_fg_raw, is_colour),
-        badge_bg = Colour.parseColorValue(badge_bg_raw, is_colour),
+        fill      = Colour.parseColorValue(fill_raw,     is_colour),
+        track     = Colour.parseColorValue(track_raw,    is_colour),
+        bookmark  = Colour.parseColorValue(bookmark_raw, is_colour),
+        badge_fg  = Colour.parseColorValue(badge_fg_raw, is_colour),
+        badge_bg  = Colour.parseColorValue(badge_bg_raw, is_colour),
+        folder_bg = folder_bg_raw and Colour.parseColorValue(folder_bg_raw, is_colour) or nil,
+        folder_fg = folder_fg_raw and Colour.parseColorValue(folder_fg_raw, is_colour) or nil,
     }
 end
 
 -- Returns the raw setting values (storage shape, not Blitbuffer). For the
--- settings menu's "currently set to..." label rendering.
+-- settings menu's "currently set to..." label rendering. Folder colours
+-- return the raw value or nil (no static default) so the menu's
+-- valueLabel helper can show "default" when unset.
 function M.rawColours()
     return {
-        fill     = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL,
-        track    = BookshelfSettings.read("progress_track") or DEFAULT_TRACK,
-        bookmark = BookshelfSettings.read("bookmark_color") or DEFAULT_BOOKMARK,
-        badge_fg = BookshelfSettings.read("badge_fg")       or DEFAULT_BADGE_FG,
-        badge_bg = BookshelfSettings.read("badge_bg")       or DEFAULT_BADGE_BG,
+        fill      = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL,
+        track     = BookshelfSettings.read("progress_track") or DEFAULT_TRACK,
+        bookmark  = BookshelfSettings.read("bookmark_color") or DEFAULT_BOOKMARK,
+        badge_fg  = BookshelfSettings.read("badge_fg")       or DEFAULT_BADGE_FG,
+        badge_bg  = BookshelfSettings.read("badge_bg")       or DEFAULT_BADGE_BG,
+        folder_bg = BookshelfSettings.read("folder_overlay_bg"),
+        folder_fg = BookshelfSettings.read("folder_overlay_fg"),
         fill_default     = DEFAULT_FILL,
         track_default    = DEFAULT_TRACK,
         bookmark_default = DEFAULT_BOOKMARK,

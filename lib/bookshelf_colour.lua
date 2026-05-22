@@ -50,6 +50,15 @@ local DEFAULT_HEX = {
     bookmark    = "#404040",
     badge_fg    = "#000000",
     badge_bg    = "#FFFFFF",
+    -- Folder overlay defaults match the colour-mode appearance of the
+    -- FolderCard module's CARDBOARD / CARDBOARD_EDGE constants. On B&W
+    -- devices the picker is replaced by a % black nudge dialog so this
+    -- hex is only ever shown as the picker's "default" swatch on colour
+    -- screens. Field names match rawColours().folder_bg / .folder_fg so
+    -- the settings menu's pickColour helper can pass the same string to
+    -- both lookups.
+    folder_bg   = "#E7C9A9",
+    folder_fg   = "#000000",
 }
 
 function Colour.defaultHexFor(field) return DEFAULT_HEX[field] end
