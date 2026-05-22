@@ -41,6 +41,15 @@ local DEFAULT_HEX = {
     metro_fill  = "#000000",
     text_color  = nil,        -- "book text colour" — clear rather than default
     symbol_color = nil,       -- "match text" — clear rather than default
+    -- Cover-indicator colours (bookshelf-specific). bookmark matches
+    -- progress_fill's default so the in-progress glyph keeps its pre-2.2.5
+    -- "darkish" look when the field is unset. badge_fg / badge_bg match the
+    -- hard-coded pill defaults (black text on a white fill) plus the
+    -- halo'd-check defaults (black outline, white centre) — see
+    -- bookshelf_cover_progress.M.buildOutlinedGlyphWidget.
+    bookmark    = "#404040",
+    badge_fg    = "#000000",
+    badge_bg    = "#FFFFFF",
 }
 
 function Colour.defaultHexFor(field) return DEFAULT_HEX[field] end

@@ -474,7 +474,7 @@ function SpineWidget:_renderShadowedCard(inner)
         local glyph_w = self:_glyphWidth(glyph_h)
         if glyph_w <= card_w * 0.4 then
             local glyph = CoverProgress.buildGlyphWidget(
-                CoverProgress.GLYPH_BOOKMARK, glyph_h, colours.fill)
+                CoverProgress.GLYPH_BOOKMARK, glyph_h, colours.bookmark)
             -- Use the TextWidget's ACTUAL rendered height for the
             -- offset math, not the nominal face size. A
             -- Font:getFace("symbols", N) widget paints at roughly

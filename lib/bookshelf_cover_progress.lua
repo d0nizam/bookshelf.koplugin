@@ -286,21 +286,26 @@ end
 local Colour   = require("lib/bookshelf_colour")
 local Device   = require("device")
 
-local DEFAULT_FILL  = { grey = 0x40 }
+local DEFAULT_FILL     = { grey = 0x40 }
 -- Track defaults to pure white so the bar stays clearly distinct from
 -- the cover's drop shadow (mid-grey) on monochrome devices.
-local DEFAULT_TRACK = { grey = 0xFF }
+local DEFAULT_TRACK    = { grey = 0xFF }
+-- Bookmark (in-progress glyph) keeps the pre-2.2.5 look — same dark-grey
+-- value the glyph picked up when it used to read from progress_fill.
+local DEFAULT_BOOKMARK = { grey = 0x40 }
 
 -- Returns colour values resolved to Blitbuffer objects for the current
 -- screen mode. Called per cover paint; relies on bookshelf_colour's
 -- internal hex cache to keep the work cheap.
 function M.resolvedColours()
-    local is_colour = Device.screen:isColorEnabled()
-    local fill_raw  = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL
-    local track_raw = BookshelfSettings.read("progress_track") or DEFAULT_TRACK
+    local is_colour    = Device.screen:isColorEnabled()
+    local fill_raw     = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL
+    local track_raw    = BookshelfSettings.read("progress_track") or DEFAULT_TRACK
+    local bookmark_raw = BookshelfSettings.read("bookmark_color") or DEFAULT_BOOKMARK
     return {
-        fill  = Colour.parseColorValue(fill_raw,  is_colour),
-        track = Colour.parseColorValue(track_raw, is_colour),
+        fill     = Colour.parseColorValue(fill_raw,     is_colour),
+        track    = Colour.parseColorValue(track_raw,    is_colour),
+        bookmark = Colour.parseColorValue(bookmark_raw, is_colour),
     }
 end
 
@@ -308,10 +313,12 @@ end
 -- settings menu's "currently set to..." label rendering.
 function M.rawColours()
     return {
-        fill  = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL,
-        track = BookshelfSettings.read("progress_track") or DEFAULT_TRACK,
-        fill_default  = DEFAULT_FILL,
-        track_default = DEFAULT_TRACK,
+        fill     = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL,
+        track    = BookshelfSettings.read("progress_track") or DEFAULT_TRACK,
+        bookmark = BookshelfSettings.read("bookmark_color") or DEFAULT_BOOKMARK,
+        fill_default     = DEFAULT_FILL,
+        track_default    = DEFAULT_TRACK,
+        bookmark_default = DEFAULT_BOOKMARK,
     }
 end
 

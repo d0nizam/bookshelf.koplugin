@@ -690,8 +690,13 @@ function Settings:_coloursSubItems()
         return _("default")
     end
 
-    local function pickColour(field, default_pct, title, touchmenu_instance)
-        local raw_key  = "progress_" .. field
+    -- raw_key   : the BookshelfSettings storage key (e.g. "progress_fill").
+    -- field     : the bookshelf_colour DEFAULT_HEX field name (e.g. "fill").
+    --             Decoupled from raw_key so the colour-picker default tile
+    --             can stay stable even as new storage keys are introduced.
+    -- default_pct: greyscale nudge dialog default (% black) for the
+    --             pre-colour-mode picker path on Kindle / older Kobo.
+    local function pickColour(raw_key, field, default_pct, title, touchmenu_instance)
         local raw      = BookshelfSettings.read(raw_key)
         local original = raw
 
@@ -747,7 +752,8 @@ function Settings:_coloursSubItems()
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                pickColour("fill", 75, _("Progress bar (% black)"), touchmenu_instance)
+                pickColour("progress_fill", "fill", 75,
+                    _("Progress bar (% black)"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 BookshelfSettings.delete("progress_fill")
@@ -761,10 +767,26 @@ function Settings:_coloursSubItems()
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                pickColour("track", 25, _("Progress bar track (% black)"), touchmenu_instance)
+                pickColour("progress_track", "track", 25,
+                    _("Progress bar track (% black)"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 BookshelfSettings.delete("progress_track")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                return _("Bookmark colour") .. ": " .. valueLabel("bookmark")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("bookmark_color", "bookmark", 75,
+                    _("Bookmark colour (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                BookshelfSettings.delete("bookmark_color")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
@@ -776,6 +798,7 @@ function Settings:_coloursSubItems()
             callback = function(touchmenu_instance)
                 BookshelfSettings.delete("progress_fill")
                 BookshelfSettings.delete("progress_track")
+                BookshelfSettings.delete("bookmark_color")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
