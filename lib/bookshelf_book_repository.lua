@@ -1810,6 +1810,9 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         -- by either is a no-op unless we hydrate them from the sidecar here.
         if k == "rating"       then needs.rating     = true end
         if k == "page_count"   then needs.page_count = true end
+        -- Folder cards carry no book_count until we count their contents
+        -- (issue 90: "sort folders by number of files").
+        if k == "book_count"   then needs.book_count = true end
     end
     -- Preserve legacy behaviour: the percent_natural sort_key needed titles
     -- in the old code; map it forward so a stale settings file still works.
@@ -1968,6 +1971,23 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                 e._status = status
                 if needs.rating     then e.rating     = rating     end
                 if needs.page_count then e.page_count = page_count end
+            end
+        end
+    end
+
+    if needs.book_count then
+        -- Folder cards on the home/folder view have no book_count of their
+        -- own; count their contents so "sort by Book count" orders folders
+        -- by how many books they hold (issue 90). Rides the cached
+        -- recursive walk -- getFolderBookPaths memoises per folder against
+        -- the same walk-list the badges use, so the sort value matches the
+        -- count shown on the card. Plain book entries have no folder-count
+        -- concept: they're left nil and the comparator (a.book_count or
+        -- #a.filepaths) sorts them to the end of their partition.
+        for _i, e in ipairs(entries) do
+            if e.attr and e.attr.mode == "directory" then
+                local paths = Repo.getFolderBookPaths(e.fp)
+                e.book_count = paths and #paths or 0
             end
         end
     end
