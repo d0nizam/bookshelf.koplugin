@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookends\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-31 15:38+0100\n"
+"POT-Creation-Date: 2026-05-31 19:26+0100\n"
 "PO-Revision-Date: 2026-04-21 14:00+0000\n"
 "Language-Team: Bulgarian\n"
 "Language: bg_BG\n"
@@ -211,7 +211,7 @@ msgid "Finished"
 msgstr "Завършени"
 
 #: lib/bookshelf_bulk_actions.lua:124 lib/bookshelf_bulk_actions.lua:126
-#: lib/bookshelf_chip_editor.lua:210 lib/bookshelf_sort_engine.lua:292
+#: lib/bookshelf_chip_editor.lua:210 lib/bookshelf_sort_engine.lua:294
 msgid "Rating"
 msgstr "Оценка"
 
@@ -320,7 +320,7 @@ msgstr "Последно четени"
 msgid "Most recently added"
 msgstr "Последно добавени"
 
-#: lib/bookshelf_chip_editor.lua:182 lib/bookshelf_sort_engine.lua:284
+#: lib/bookshelf_chip_editor.lua:182 lib/bookshelf_sort_engine.lua:286
 msgid "Book count"
 msgstr "Брой книги"
 
@@ -398,8 +398,8 @@ msgstr "Статус"
 msgid "Format"
 msgstr "Формат"
 
-#: lib/bookshelf_chip_editor.lua:218 lib/bookshelf_chip_editor.lua:1328
-#: lib/bookshelf_chip_editor.lua:1413 lib/bookshelf_settings.lua:1367
+#: lib/bookshelf_chip_editor.lua:218 lib/bookshelf_chip_editor.lua:1418
+#: lib/bookshelf_settings.lua:1367
 msgid "(none)"
 msgstr "(няма)"
 
@@ -468,8 +468,8 @@ msgstr "Избор на "
 msgid "Search…"
 msgstr "Търсене…"
 
-#: lib/bookshelf_chip_editor.lua:1004 lib/bookshelf_chip_editor.lua:1336
-#: lib/bookshelf_chip_editor.lua:1437 lib/bookshelf_collection_manager.lua:539
+#: lib/bookshelf_chip_editor.lua:1004 lib/bookshelf_chip_editor.lua:1341
+#: lib/bookshelf_chip_editor.lua:1442 lib/bookshelf_collection_manager.lua:539
 #: lib/bookshelf_hero_line_editor.lua:94 lib/bookshelf_settings.lua:232
 #: lib/bookshelf_updater.lua:267 lib/bookshelf_widget.lua:7146
 msgid "Close"
@@ -527,52 +527,56 @@ msgstr "Готово"
 msgid "Reading status filter"
 msgstr "Филтър по статус на четене"
 
-#: lib/bookshelf_chip_editor.lua:1384
+#: lib/bookshelf_chip_editor.lua:1333
+msgid "Clear sort"
+msgstr "Изчистване на сортирането"
+
+#: lib/bookshelf_chip_editor.lua:1389
 msgid "Sort groups by"
 msgstr "Сортиране на групите по"
 
-#: lib/bookshelf_chip_editor.lua:1386
+#: lib/bookshelf_chip_editor.lua:1391
 msgid "Within each group, then by"
 msgstr "Във всяка група, след това по"
 
-#: lib/bookshelf_chip_editor.lua:1388
+#: lib/bookshelf_chip_editor.lua:1393
 msgid "Sort by"
 msgstr "Сортиране по"
 
-#: lib/bookshelf_chip_editor.lua:1390
+#: lib/bookshelf_chip_editor.lua:1395
 msgid "Then by"
 msgstr "След това по"
 
-#: lib/bookshelf_chip_editor.lua:1414
+#: lib/bookshelf_chip_editor.lua:1419
 msgid "Star"
 msgstr "Звезда"
 
-#: lib/bookshelf_chip_editor.lua:1415
+#: lib/bookshelf_chip_editor.lua:1420
 msgid "Heart"
 msgstr "Сърце"
 
-#: lib/bookshelf_chip_editor.lua:1416
+#: lib/bookshelf_chip_editor.lua:1421
 msgid "Check"
 msgstr "Отметка"
 
-#: lib/bookshelf_chip_editor.lua:1417
+#: lib/bookshelf_chip_editor.lua:1422
 msgid "Play"
 msgstr "Старт"
 
-#: lib/bookshelf_chip_editor.lua:1418 lib/bookshelf_settings.lua:76
+#: lib/bookshelf_chip_editor.lua:1423 lib/bookshelf_settings.lua:76
 msgid "Book"
 msgstr "Книга"
 
-#: lib/bookshelf_chip_editor.lua:1419
+#: lib/bookshelf_chip_editor.lua:1424 lib/bookshelf_sort_engine.lua:286
 msgid "Books"
 msgstr "Книги"
 
-#: lib/bookshelf_chip_editor.lua:1420 lib/bookshelf_library_modal.lua:407
+#: lib/bookshelf_chip_editor.lua:1425 lib/bookshelf_library_modal.lua:407
 #: lib/bookshelf_widget.lua:8707
 msgid "Search"
 msgstr "Търсене"
 
-#: lib/bookshelf_chip_editor.lua:1441
+#: lib/bookshelf_chip_editor.lua:1446
 msgid "Chip icon"
 msgstr "Икона на чип"
 
@@ -718,7 +722,7 @@ msgstr "Избор на шрифт"
 msgid "Bold"
 msgstr "Удебелен"
 
-#: lib/bookshelf_hero_line_editor.lua:311 lib/bookshelf_sort_engine.lua:277
+#: lib/bookshelf_hero_line_editor.lua:311
 msgid "Size"
 msgstr "Размер"
 
@@ -1539,19 +1543,15 @@ msgstr "Дата на добавяне"
 msgid "Added"
 msgstr "Добавена"
 
-#: lib/bookshelf_sort_engine.lua:277
+#: lib/bookshelf_sort_engine.lua:279
 msgid "File size"
 msgstr "Размер на файла"
 
-#: lib/bookshelf_sort_engine.lua:284
-msgid "Count"
-msgstr "Брой"
-
-#: lib/bookshelf_sort_engine.lua:299
+#: lib/bookshelf_sort_engine.lua:301
 msgid "Page count"
 msgstr "Брой страници"
 
-#: lib/bookshelf_sort_engine.lua:299
+#: lib/bookshelf_sort_engine.lua:301
 msgid "Pages"
 msgstr "Стр."
 
@@ -1949,3 +1949,6 @@ msgstr "Търсене в библиотеката"
 #: lib/bookshelf_widget.lua:8698
 msgid "title, author, series, genre…"
 msgstr "заглавие, автор, поредица, жанр…"
+
+#~ msgid "Count"
+#~ msgstr "Брой"

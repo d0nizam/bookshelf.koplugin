@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-31 15:38+0100\n"
+"POT-Creation-Date: 2026-05-31 19:26+0100\n"
 "Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -207,7 +207,7 @@ msgid "Finished"
 msgstr "Concluído"
 
 #: lib/bookshelf_bulk_actions.lua:124 lib/bookshelf_bulk_actions.lua:126
-#: lib/bookshelf_chip_editor.lua:210 lib/bookshelf_sort_engine.lua:292
+#: lib/bookshelf_chip_editor.lua:210 lib/bookshelf_sort_engine.lua:294
 msgid "Rating"
 msgstr "Avaliação"
 
@@ -316,7 +316,7 @@ msgstr "Lido mais recentemente"
 msgid "Most recently added"
 msgstr "Adicionado mais recentemente"
 
-#: lib/bookshelf_chip_editor.lua:182 lib/bookshelf_sort_engine.lua:284
+#: lib/bookshelf_chip_editor.lua:182 lib/bookshelf_sort_engine.lua:286
 msgid "Book count"
 msgstr "Contagem de livros"
 
@@ -394,8 +394,8 @@ msgstr "Status"
 msgid "Format"
 msgstr "Formato"
 
-#: lib/bookshelf_chip_editor.lua:218 lib/bookshelf_chip_editor.lua:1328
-#: lib/bookshelf_chip_editor.lua:1413 lib/bookshelf_settings.lua:1367
+#: lib/bookshelf_chip_editor.lua:218 lib/bookshelf_chip_editor.lua:1418
+#: lib/bookshelf_settings.lua:1367
 msgid "(none)"
 msgstr "(nenhum)"
 
@@ -464,8 +464,8 @@ msgstr "Escolher "
 msgid "Search…"
 msgstr "Buscar…"
 
-#: lib/bookshelf_chip_editor.lua:1004 lib/bookshelf_chip_editor.lua:1336
-#: lib/bookshelf_chip_editor.lua:1437 lib/bookshelf_collection_manager.lua:539
+#: lib/bookshelf_chip_editor.lua:1004 lib/bookshelf_chip_editor.lua:1341
+#: lib/bookshelf_chip_editor.lua:1442 lib/bookshelf_collection_manager.lua:539
 #: lib/bookshelf_hero_line_editor.lua:94 lib/bookshelf_settings.lua:232
 #: lib/bookshelf_updater.lua:267 lib/bookshelf_widget.lua:7146
 msgid "Close"
@@ -523,52 +523,56 @@ msgstr "Concluído"
 msgid "Reading status filter"
 msgstr "Filtro de status de leitura"
 
-#: lib/bookshelf_chip_editor.lua:1384
+#: lib/bookshelf_chip_editor.lua:1333
+msgid "Clear sort"
+msgstr "Limpar ordenação"
+
+#: lib/bookshelf_chip_editor.lua:1389
 msgid "Sort groups by"
 msgstr "Ordenar grupos por"
 
-#: lib/bookshelf_chip_editor.lua:1386
+#: lib/bookshelf_chip_editor.lua:1391
 msgid "Within each group, then by"
 msgstr "Dentro de cada grupo, então por"
 
-#: lib/bookshelf_chip_editor.lua:1388
+#: lib/bookshelf_chip_editor.lua:1393
 msgid "Sort by"
 msgstr "Ordenar por"
 
-#: lib/bookshelf_chip_editor.lua:1390
+#: lib/bookshelf_chip_editor.lua:1395
 msgid "Then by"
 msgstr "Em seguida por"
 
-#: lib/bookshelf_chip_editor.lua:1414
+#: lib/bookshelf_chip_editor.lua:1419
 msgid "Star"
 msgstr "Estrela"
 
-#: lib/bookshelf_chip_editor.lua:1415
+#: lib/bookshelf_chip_editor.lua:1420
 msgid "Heart"
 msgstr "Coração"
 
-#: lib/bookshelf_chip_editor.lua:1416
+#: lib/bookshelf_chip_editor.lua:1421
 msgid "Check"
 msgstr "Marca"
 
-#: lib/bookshelf_chip_editor.lua:1417
+#: lib/bookshelf_chip_editor.lua:1422
 msgid "Play"
 msgstr "Reproduzir"
 
-#: lib/bookshelf_chip_editor.lua:1418 lib/bookshelf_settings.lua:76
+#: lib/bookshelf_chip_editor.lua:1423 lib/bookshelf_settings.lua:76
 msgid "Book"
 msgstr "Livro"
 
-#: lib/bookshelf_chip_editor.lua:1419
+#: lib/bookshelf_chip_editor.lua:1424 lib/bookshelf_sort_engine.lua:286
 msgid "Books"
 msgstr "Livros"
 
-#: lib/bookshelf_chip_editor.lua:1420 lib/bookshelf_library_modal.lua:407
+#: lib/bookshelf_chip_editor.lua:1425 lib/bookshelf_library_modal.lua:407
 #: lib/bookshelf_widget.lua:8707
 msgid "Search"
 msgstr "Buscar"
 
-#: lib/bookshelf_chip_editor.lua:1441
+#: lib/bookshelf_chip_editor.lua:1446
 msgid "Chip icon"
 msgstr "Ícone do chip"
 
@@ -714,7 +718,7 @@ msgstr "Escolher fonte"
 msgid "Bold"
 msgstr "Negrito"
 
-#: lib/bookshelf_hero_line_editor.lua:311 lib/bookshelf_sort_engine.lua:277
+#: lib/bookshelf_hero_line_editor.lua:311
 msgid "Size"
 msgstr "Tamanho"
 
@@ -1156,10 +1160,10 @@ msgid ""
 "fetches fresh covers from the EPUBs. Restarting KOReader has the same effect."
 msgstr ""
 "Remove todas as capas redimensionadas do cache de memória. Use isto quando a "
-"capa de um livro foi atualizada fora do KOReader (por exemplo, uma ferramenta "
-"de enriquecimento de metadados reescreveu o EPUB) e a capa antiga ainda "
-"aparece na estante. A próxima renderização busca capas atualizadas dos EPUBs. "
-"Reiniciar o KOReader tem o mesmo efeito."
+"capa de um livro foi atualizada fora do KOReader (por exemplo, uma "
+"ferramenta de enriquecimento de metadados reescreveu o EPUB) e a capa antiga "
+"ainda aparece na estante. A próxima renderização busca capas atualizadas dos "
+"EPUBs. Reiniciar o KOReader tem o mesmo efeito."
 
 #: lib/bookshelf_settings.lua:1352
 msgid "Cover cache cleared"
@@ -1535,19 +1539,15 @@ msgstr "Data de adição"
 msgid "Added"
 msgstr "Adicionado"
 
-#: lib/bookshelf_sort_engine.lua:277
+#: lib/bookshelf_sort_engine.lua:279
 msgid "File size"
 msgstr "Tamanho do arquivo"
 
-#: lib/bookshelf_sort_engine.lua:284
-msgid "Count"
-msgstr "Contagem"
-
-#: lib/bookshelf_sort_engine.lua:299
+#: lib/bookshelf_sort_engine.lua:301
 msgid "Page count"
 msgstr "Contagem de páginas"
 
-#: lib/bookshelf_sort_engine.lua:299
+#: lib/bookshelf_sort_engine.lua:301
 msgid "Pages"
 msgstr "Páginas"
 
@@ -1946,3 +1946,6 @@ msgstr "Buscar na biblioteca"
 #: lib/bookshelf_widget.lua:8698
 msgid "title, author, series, genre…"
 msgstr "título, autor, série, gênero…"
+
+#~ msgid "Count"
+#~ msgstr "Contagem"

@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-31 15:38+0100\n"
+"POT-Creation-Date: 2026-05-31 19:26+0100\n"
 "Language: it\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -207,7 +207,7 @@ msgid "Finished"
 msgstr "Terminato"
 
 #: lib/bookshelf_bulk_actions.lua:124 lib/bookshelf_bulk_actions.lua:126
-#: lib/bookshelf_chip_editor.lua:210 lib/bookshelf_sort_engine.lua:292
+#: lib/bookshelf_chip_editor.lua:210 lib/bookshelf_sort_engine.lua:294
 msgid "Rating"
 msgstr "Valutazione"
 
@@ -316,7 +316,7 @@ msgstr "Letto più di recente"
 msgid "Most recently added"
 msgstr "Aggiunto più di recente"
 
-#: lib/bookshelf_chip_editor.lua:182 lib/bookshelf_sort_engine.lua:284
+#: lib/bookshelf_chip_editor.lua:182 lib/bookshelf_sort_engine.lua:286
 msgid "Book count"
 msgstr "Numero di libri"
 
@@ -394,8 +394,8 @@ msgstr "Stato"
 msgid "Format"
 msgstr "Formato"
 
-#: lib/bookshelf_chip_editor.lua:218 lib/bookshelf_chip_editor.lua:1328
-#: lib/bookshelf_chip_editor.lua:1413 lib/bookshelf_settings.lua:1367
+#: lib/bookshelf_chip_editor.lua:218 lib/bookshelf_chip_editor.lua:1418
+#: lib/bookshelf_settings.lua:1367
 msgid "(none)"
 msgstr "(nessuno)"
 
@@ -464,8 +464,8 @@ msgstr "Scegli "
 msgid "Search…"
 msgstr "Cerca…"
 
-#: lib/bookshelf_chip_editor.lua:1004 lib/bookshelf_chip_editor.lua:1336
-#: lib/bookshelf_chip_editor.lua:1437 lib/bookshelf_collection_manager.lua:539
+#: lib/bookshelf_chip_editor.lua:1004 lib/bookshelf_chip_editor.lua:1341
+#: lib/bookshelf_chip_editor.lua:1442 lib/bookshelf_collection_manager.lua:539
 #: lib/bookshelf_hero_line_editor.lua:94 lib/bookshelf_settings.lua:232
 #: lib/bookshelf_updater.lua:267 lib/bookshelf_widget.lua:7146
 msgid "Close"
@@ -523,52 +523,56 @@ msgstr "Fatto"
 msgid "Reading status filter"
 msgstr "Filtro stato di lettura"
 
-#: lib/bookshelf_chip_editor.lua:1384
+#: lib/bookshelf_chip_editor.lua:1333
+msgid "Clear sort"
+msgstr "Cancella ordinamento"
+
+#: lib/bookshelf_chip_editor.lua:1389
 msgid "Sort groups by"
 msgstr "Ordina gruppi per"
 
-#: lib/bookshelf_chip_editor.lua:1386
+#: lib/bookshelf_chip_editor.lua:1391
 msgid "Within each group, then by"
 msgstr "All'interno di ogni gruppo, poi per"
 
-#: lib/bookshelf_chip_editor.lua:1388
+#: lib/bookshelf_chip_editor.lua:1393
 msgid "Sort by"
 msgstr "Ordina per"
 
-#: lib/bookshelf_chip_editor.lua:1390
+#: lib/bookshelf_chip_editor.lua:1395
 msgid "Then by"
 msgstr "Poi per"
 
-#: lib/bookshelf_chip_editor.lua:1414
+#: lib/bookshelf_chip_editor.lua:1419
 msgid "Star"
 msgstr "Stella"
 
-#: lib/bookshelf_chip_editor.lua:1415
+#: lib/bookshelf_chip_editor.lua:1420
 msgid "Heart"
 msgstr "Cuore"
 
-#: lib/bookshelf_chip_editor.lua:1416
+#: lib/bookshelf_chip_editor.lua:1421
 msgid "Check"
 msgstr "Spunta"
 
-#: lib/bookshelf_chip_editor.lua:1417
+#: lib/bookshelf_chip_editor.lua:1422
 msgid "Play"
 msgstr "Play"
 
-#: lib/bookshelf_chip_editor.lua:1418 lib/bookshelf_settings.lua:76
+#: lib/bookshelf_chip_editor.lua:1423 lib/bookshelf_settings.lua:76
 msgid "Book"
 msgstr "Libro"
 
-#: lib/bookshelf_chip_editor.lua:1419
+#: lib/bookshelf_chip_editor.lua:1424 lib/bookshelf_sort_engine.lua:286
 msgid "Books"
 msgstr "Libri"
 
-#: lib/bookshelf_chip_editor.lua:1420 lib/bookshelf_library_modal.lua:407
+#: lib/bookshelf_chip_editor.lua:1425 lib/bookshelf_library_modal.lua:407
 #: lib/bookshelf_widget.lua:8707
 msgid "Search"
 msgstr "Cerca"
 
-#: lib/bookshelf_chip_editor.lua:1441
+#: lib/bookshelf_chip_editor.lua:1446
 msgid "Chip icon"
 msgstr "Icona chip"
 
@@ -714,7 +718,7 @@ msgstr "Scegli font"
 msgid "Bold"
 msgstr "Grassetto"
 
-#: lib/bookshelf_hero_line_editor.lua:311 lib/bookshelf_sort_engine.lua:277
+#: lib/bookshelf_hero_line_editor.lua:311
 msgid "Size"
 msgstr "Dimensione"
 
@@ -1537,19 +1541,15 @@ msgstr "Data aggiunta"
 msgid "Added"
 msgstr "Aggiunto"
 
-#: lib/bookshelf_sort_engine.lua:277
+#: lib/bookshelf_sort_engine.lua:279
 msgid "File size"
 msgstr "Dimensione file"
 
-#: lib/bookshelf_sort_engine.lua:284
-msgid "Count"
-msgstr "Conteggio"
-
-#: lib/bookshelf_sort_engine.lua:299
+#: lib/bookshelf_sort_engine.lua:301
 msgid "Page count"
 msgstr "Numero di pagine"
 
-#: lib/bookshelf_sort_engine.lua:299
+#: lib/bookshelf_sort_engine.lua:301
 msgid "Pages"
 msgstr "Pagine"
 
@@ -1948,3 +1948,6 @@ msgstr "Cerca nella libreria"
 #: lib/bookshelf_widget.lua:8698
 msgid "title, author, series, genre…"
 msgstr "titolo, autore, serie, genere…"
+
+#~ msgid "Count"
+#~ msgstr "Conteggio"

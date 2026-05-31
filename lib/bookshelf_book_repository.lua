@@ -1804,6 +1804,11 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         if k == "percent_read" then needs.percent  = true end
         if k == "read_status"  then needs.status   = true end
         if k == "last_opened"  then needs.last_opened = true end
+        -- rating / page_count are NOT on the light shelf record (rating is
+        -- never set by buildBookMeta; page_count is nil for EPUBs), so a sort
+        -- by either is a no-op unless we hydrate them from the sidecar here.
+        if k == "rating"       then needs.rating     = true end
+        if k == "page_count"   then needs.page_count = true end
     end
     -- Preserve legacy behaviour: the percent_natural sort_key needed titles
     -- in the old code; map it forward so a stale settings file still works.
@@ -1939,7 +1944,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
             end
         end
     end
-    if needs.percent or needs.status then
+    if needs.percent or needs.status or needs.rating or needs.page_count then
         -- Route through Repo.readProgress so steady-state re-runs of this
         -- prefetch (cache TTL expired, but progress cache still warm) skip
         -- the per-file DocSettings:open() cost. readProgress also handles
@@ -1951,11 +1956,17 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         -- < 1 (e.g. user marked complete at 99% read). Without this,
         -- finished books would sort AHEAD of in-progress books because the
         -- comparator only looked at percent (issue #17).
+        --
+        -- rating / page_count: set on the record (the comparator reads
+        -- a.rating / a.page_count, no underscore) so a sort by either
+        -- actually reorders. Only written when that key is in the priority.
         for _i, e in ipairs(entries) do
             if e.attr and e.attr.mode == "file" then
-                local pct, status = Repo.readProgress(e.fp)
+                local pct, status, rating, page_count = Repo.readProgress(e.fp)
                 e._pct    = pct
                 e._status = status
+                if needs.rating     then e.rating     = rating     end
+                if needs.page_count then e.page_count = page_count end
             end
         end
     end
@@ -3929,9 +3940,11 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                 if k == "percent_read"
                         or k == "read_status"
                         or k == "read_status_active"
-                        or k == "rating" then
-                    -- 'rating' lives in summary.rating which Repo.readProgress
-                    -- now also returns, so it piggybacks on the same prefetch.
+                        or k == "rating"
+                        or k == "page_count" then
+                    -- 'rating' and 'page_count' both come back from
+                    -- Repo.readProgress (summary.rating + the sidecar page
+                    -- map), so they piggyback on the same prefetch.
                     needs_progress = true
                     break
                 end
@@ -3960,15 +3973,17 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     local has_sdr  = lfs_attr
                         and lfs_attr(sdr_path, "mode") == "directory"
                     if has_sdr then
-                        local pct, status, rating = Repo.readProgress(b.filepath)
-                        b._pct      = pct
-                        b._status   = status
-                        b.rating    = b.rating or rating
-                        full_read   = full_read + 1
+                        local pct, status, rating, page_count = Repo.readProgress(b.filepath)
+                        b._pct       = pct
+                        b._status    = status
+                        b.rating     = b.rating or rating
+                        b.page_count = b.page_count or page_count
+                        full_read    = full_read + 1
                     else
                         b._pct      = nil
                         b._status   = nil
-                        -- rating stays nil too -- unread books can't be rated
+                        -- rating / page_count stay nil too -- unread books
+                        -- can't be rated and have no sidecar page map
                         fast_skipped = fast_skipped + 1
                     end
                     b._progress_fetched = true
