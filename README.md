@@ -109,7 +109,7 @@ Below the header you'll find:
 | **Show info** | KOReader's built-in book info dialog. |
 | **Collections (N)…** | Add or remove the book from any collection (Favourites, To Be Read, your own). The number shows current membership. |
 | **Rating** | Set a 1-to-5 star rating, or clear it. |
-| **Hardcover** | Link the book to Hardcover, pick a specific edition, or refresh cached Hardcover metadata. Requires `hardcoverapp.koplugin`. |
+| **Link to Hardcover** / **Edit Hardcover link** | Sits in its own row at the top of the menu, shown only when `hardcoverapp.koplugin` is enabled. Link the book to a Hardcover edition, or edit an existing link. When linked, a **Hardcover reviews** button appears beside it. See [Hardcover enrichment](#hardcover-enrichment). |
 | **Refresh metadata** | Re-read the cover and metadata from the file (useful after editing metadata externally). |
 | **Remove from history** | Drop the book from Recent without changing anything else on disk. |
 | **Reset book data…** | A wider purge with checkboxes for progress, bookmarks, highlights, notes, custom cover, and custom metadata. |
@@ -134,15 +134,24 @@ To put a book into a collection, long-press its cover and tap **Collections (N)�
 
 ## Hardcover enrichment
 
-If you also use `hardcoverapp.koplugin`, Bookshelf can reuse its book links and cache a small amount of Hardcover metadata for display:
+If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover and cache a small amount of Hardcover metadata for display. These features only appear when that plugin is installed and enabled, so they stay out of the way if you don't use Hardcover. (The **Settings -> Hardcover enrichment** menu also stays available if you've linked books before, so you keep access to already-cached data even after removing the plugin.)
+
+**Linking a book.** Long-press a cover; with the plugin enabled, a Hardcover row sits at the top of the book menu. **Link to Hardcover** (or **Edit Hardcover link** once linked) opens the link menu:
+
+- **Auto link** -- links using identifiers already embedded in the EPUB, with no searching: an ISBN, or a Hardcover id/edition baked into the file's metadata. The most specific identifier wins (a Hardcover edition, then ISBN, then a Hardcover book/slug).
+- **Manual link…** -- searches Hardcover by title and author and lets you pick the right book.
+- **Select edition…** -- once linked, choose a specific edition (e.g. to get the right cover or page count).
+- **Clear link** -- remove the Hardcover link.
+
+If a book has usable identifiers, Auto link is one tap; otherwise use Manual link. When a book is linked, a **Hardcover reviews** button appears in the book menu (and the hero rating row's "N reviews" opens the same popup). Reviews are cached, so they reopen offline once fetched.
+
+**What gets enriched** (all optional, toggled under **Settings -> Hardcover enrichment**):
 
 - Missing book descriptions can be filled from Hardcover.
-- Missing local EPUB covers can use cached Hardcover cover images as a Bookshelf-only fallback.
-- Cached Hardcover ratings can be shown in the hero rating row, and tapping that row opens a non-spoiler review popup.
-- Links are managed from a book's long-press menu under **Hardcover**.
-- Network calls only happen from explicit actions such as linking, refreshing metadata/ratings, or opening reviews. Normal shelf rendering reads only the local cache.
+- Missing local EPUB covers can use a cached Hardcover cover image as a Bookshelf-only fallback.
+- Cached Hardcover ratings can be shown in the hero rating row.
 
-Bookshelf does not rewrite EPUB files. Hardcover descriptions and cover images are stored in Bookshelf's settings/cache and can be disabled or cleared from **Settings -> Hardcover enrichment**.
+Bookshelf does not rewrite EPUB files -- Hardcover descriptions and cover images are stored in Bookshelf's own cache. Network calls only happen from explicit actions (linking, refreshing ratings, fetching reviews); normal shelf rendering reads only the local cache. You can disable or clear the cache from **Settings -> Hardcover enrichment**.
 
 ---
 
