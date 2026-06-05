@@ -328,16 +328,25 @@ function Settings:_heroSubItems()
     -- knob across each context-specific submenu.
     local items = {}
     -- Translation extraction markers: Regions.LABELS values reach the
-    -- runtime via the _(Regions.LABELS[key]) dynamic lookup below, which
-    -- xgettext cannot follow. Most labels ("Status line", "Title", ...)
-    -- pick up translations because the same string appears in a direct
-    -- _() call elsewhere, but "Rating (interactive)" is unique to this
-    -- surface. Listing it here is dead code at runtime but lets xgettext
-    -- emit the msgid so translators see it.
+    -- runtime via the _(Regions.LABELS[key]) dynamic lookup below (and the
+    -- same lookup in bookshelf_hero_line_editor), which xgettext cannot
+    -- follow. List EVERY region label here -- not just the ones unique to
+    -- this surface -- so none can silently drop from the .pot on regen.
+    -- Relying on "it also appears in a direct _() elsewhere" already failed
+    -- once: "Status line" and "Metadata" were never extracted and so were
+    -- untranslatable in every locale (surfaced via the zh_CN PR #109). Keep
+    -- this list in sync with Regions.LABELS. Dead code at runtime; it
+    -- exists only so xgettext emits the msgids.
     if false then
         local _ignore = {
+            _("Status line"),
+            _("Title"),
+            _("Author"),
             _("Rating (interactive)"),
+            _("Metadata"),
+            _("Description"),
             _("Tags (interactive)"),
+            _("Progress"),
         }
     end
     for _i, key in ipairs(Regions.ORDER) do
