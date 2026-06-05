@@ -1066,6 +1066,12 @@ function Hardcover.fetchReviews(book_id, opts)
         return true, cached
     end
 
+    -- cache_only: peek the cache without ever hitting the API (lets callers
+    -- serve cached reviews synchronously, with no network and no progress UI).
+    if opts.cache_only then
+        return false, "No cached reviews"
+    end
+
     local Api, api_err = _loadApi()
     if not Api then return false, api_err end
 

@@ -51,6 +51,11 @@ local ReviewsModal = InputContainer:extend{
     width      = nil,
     height     = nil,
     on_refresh = nil,   -- optional callback fired by the Refresh button
+    on_close   = nil,   -- optional callback fired once when the modal is
+                        -- genuinely dismissed (NOT on Refresh, which reopens).
+                        -- Used to return to the caller (e.g. the book menu)
+                        -- when opened from there; left nil for the hero
+                        -- "N reviews" tap, which just closes.
 }
 
 function ReviewsModal:init()
@@ -82,24 +87,31 @@ function ReviewsModal:init()
         show_parent      = self,
     }
 
+    -- Refresh only makes sense when the caller supplied an on_refresh (the
+    -- reviews use it to re-fetch). Reused for plain HTML content (e.g. a book
+    -- description), where there's nothing to refresh, it's omitted and only
+    -- Close remains.
+    local button_row = {}
+    if self.on_refresh then
+        button_row[#button_row + 1] = {
+            text = _("Refresh"),
+            callback = function()
+                local cb = self.on_refresh
+                -- Refresh reopens the modal, so suppress the
+                -- return-on-close callback for this close.
+                self._suppress_close_cb = true
+                self:onClose()
+                if cb then cb() end
+            end,
+        }
+    end
+    button_row[#button_row + 1] = {
+        text = _("Close"),
+        callback = function() self:onClose() end,
+    }
     local buttons = ButtonTable:new{
         width = self.width,
-        buttons = {
-            {
-                {
-                    text = _("Refresh"),
-                    callback = function()
-                        local cb = self.on_refresh
-                        self:onClose()
-                        if cb then cb() end
-                    end,
-                },
-                {
-                    text = _("Close"),
-                    callback = function() self:onClose() end,
-                },
-            },
-        },
+        buttons = { button_row },
         show_parent = self,
     }
 
@@ -180,6 +192,13 @@ end
 
 function ReviewsModal:onClose()
     UIManager:close(self)
+    -- Fire the optional return-to-caller callback exactly once, and never
+    -- when Refresh is reopening the modal.
+    if self.on_close and not self._on_close_fired and not self._suppress_close_cb then
+        self._on_close_fired = true
+        self.on_close()
+    end
+    self._suppress_close_cb = nil
     return true
 end
 

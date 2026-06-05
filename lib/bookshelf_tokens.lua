@@ -355,6 +355,10 @@ function Tokens.sanitiseReviewHtml(raw)
     s = s:gsub("<%s*[sS][tT][yY][lL][eE].-<%s*/%s*[sS][tT][yY][lL][eE]%s*>", "")
     s = s:gsub("<(/?)%s*([%a][%w]*)[^>]*>", function(slash, name)
         name = name:lower()
+        -- Normalise every break form (<br>, <br/>, and the malformed </br>
+        -- some reviews emit) to a plain <br> so the collapse logic below
+        -- catches them all.
+        if name == "br" then return "<br>" end
         if REVIEW_ALLOWED_TAGS[name] then
             return "<" .. slash .. name .. ">"
         end
@@ -368,9 +372,24 @@ function Tokens.sanitiseReviewHtml(raw)
     local prev
     repeat
         prev = s
+        -- Collapse stacked breaks (reviewers pad with multiple <br> for
+        -- spacing, which KOReader renders as one blank line each -> a big
+        -- mid-review gap) down to a single break, and drop breaks hugging a
+        -- paragraph edge.
+        s = s:gsub("<br>%s*<br>", "<br>")
         s = s:gsub("<p>%s*<br>%s*", "<p>")
         s = s:gsub("%s*<br>%s*</p>", "</p>")
     until s == prev
+    -- Drop a break hugging any block boundary -- the block already supplies
+    -- its own vertical spacing, so the <br> just adds an empty line.
+    s = s:gsub("</p>%s*<br>%s*", "</p>")
+    s = s:gsub("</blockquote>%s*<br>%s*", "</blockquote>")
+    s = s:gsub("</li>%s*<br>%s*", "</li>")
+    s = s:gsub("%s*<br>%s*<p>", "<p>")
+    s = s:gsub("%s*<br>%s*<blockquote>", "<blockquote>")
+    -- Leading / trailing breaks on the whole fragment.
+    s = s:gsub("^%s*<br>%s*", "")
+    s = s:gsub("%s*<br>%s*$", "")
     return s
 end
 

@@ -405,5 +405,26 @@ test("reviewsHtml embeds the sanitised review body (script stripped)", function(
     hasnt(html, "<script>", "script leaked into output")
 end)
 
+test("sanitiseReviewHtml: collapses stacked breaks and malformed </br>", function()
+    -- Real shape from a Hardcover review that rendered a big mid-review gap:
+    -- stacked "<br><br></br>" runs after a paragraph.
+    local out = Tokens.sanitiseReviewHtml(
+        "<p>quote</p><br><br></br><p>(p.196)</p><br><br></br><br><br></br><br><br></br>")
+    assert(not out:find("</br>", 1, true), "malformed </br> survived: " .. out)
+    assert(not out:find("<br>%s*<br>"), "stacked <br> not collapsed: " .. out)
+    assert(not out:find("</p>%s*<br>"), "<br> hugging </p> survived: " .. out)
+    assert(not out:find("<br>%s*$"), "trailing <br> survived: " .. out)
+end)
+
+test("sanitiseReviewHtml: drops break between block boundary and paragraph", function()
+    local out = Tokens.sanitiseReviewHtml("</blockquote><br><br><p>x</p>")
+    eq(out, "</blockquote><p>x</p>", "boundary break not dropped:")
+end)
+
+test("sanitiseReviewHtml: keeps a single intra-paragraph break", function()
+    local out = Tokens.sanitiseReviewHtml("<p>line one<br>line two</p>")
+    eq(out, "<p>line one<br>line two</p>", "single intra-paragraph break lost:")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

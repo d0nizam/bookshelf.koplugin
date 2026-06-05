@@ -2696,6 +2696,11 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         end,
         on_description_tap = function(b) self:_showFullDescription(b) end,
         on_rating_change   = function(b, r) self:_setBookRating(b, r) end,
+        -- Left tappable even when the Hardcover plugin is disabled: reviews
+        -- are served cache-first (fetchReviews returns within-TTL cached
+        -- reviews without touching the API), so a book whose reviews were
+        -- already fetched still opens them. Only a cold/expired fetch needs
+        -- the plugin, and that path already shows a graceful error.
         on_hardcover_reviews_tap = function(b) self:_showHardcoverReviews(b) end,
         is_selected      = (self._focus_zone == "hero")
                            or (current and self._selection:contains(current.filepath) or false)
@@ -7228,21 +7233,26 @@ end
 -- text with paragraph breaks preserved.
 function BookshelfWidget:_showFullDescription(book)
     if not book or not book.description or book.description == "" then return end
-    local Tokens     = require("lib/bookshelf_tokens")
-    local TextViewer = require("ui/widget/textviewer")
-    local text = Tokens.cleanDescription(book.description) or ""
-    if text == "" then return end
+    local Tokens = require("lib/bookshelf_tokens")
+    -- Render the description as formatted HTML (paragraphs, emphasis, lists)
+    -- in the same scrollable modal the reviews use, via the shared sanitiser
+    -- (whitelisted tags, attributes stripped, break-runs collapsed). Falls
+    -- back to the plain-text cleaner if sanitising yields nothing usable.
+    local html = Tokens.sanitiseReviewHtml(book.description)
+    if not html or html:gsub("%s+", "") == "" then
+        local text = Tokens.cleanDescription(book.description) or ""
+        if text == "" then return end
+        html = "<p>" .. (text:gsub("\n\n+", "</p><p>"):gsub("\n", "<br>")) .. "</p>"
+    end
     local title = book.title or _("Description")
     if book.author then title = title .. " — " .. book.author end
-    local viewer
-    viewer = TextViewer:new{
-        title = title,
-        text  = text,
-        buttons_table = {
-            { { text = _("Close"), callback = function() UIManager:close(viewer) end } },
-        },
-    }
-    UIManager:show(viewer)
+    local ReviewsModal = require("lib/bookshelf_reviews_modal")
+    UIManager:show(ReviewsModal:new{
+        title     = title,
+        html_body = html,
+        -- No on_refresh: a description doesn't refresh, so the modal shows a
+        -- single Close button.
+    })
 end
 
 function BookshelfWidget:_showHardcoverReviews(book, opts)
@@ -7256,6 +7266,7 @@ function BookshelfWidget:_showHardcoverReviews(book, opts)
             icon = "notice-warning",
             timeout = 3,
         })
+        if opts.on_close then opts.on_close() end
         return
     end
 
@@ -7267,28 +7278,13 @@ function BookshelfWidget:_showHardcoverReviews(book, opts)
             icon = "notice-warning",
             timeout = 3,
         })
+        if opts.on_close then opts.on_close() end
         return
     end
 
-    UIManager:show(InfoMessage:new{
-        text = _("Fetching Hardcover reviews..."),
-        timeout = 1,
-    })
-
-    Hardcover.fetchReviewsOnline(book_id, {
-        force = opts.force == true,
-    }, function(ok, result)
-        if not ok then
-            UIManager:show(InfoMessage:new{
-                text = _("Hardcover reviews could not be fetched: ") .. tostring(result),
-                icon = "notice-warning",
-                timeout = 5,
-            })
-            return
-        end
-
-        local Tokens = require("lib/bookshelf_tokens")
-        local ReviewsModal = require("lib/bookshelf_reviews_modal")
+    local Tokens = require("lib/bookshelf_tokens")
+    local ReviewsModal = require("lib/bookshelf_reviews_modal")
+    local function showModal(result)
         local html = Tokens.reviewsHtml{
             title         = result.title or book.hardcover_title or book.title,
             rating        = result.rating,
@@ -7299,10 +7295,48 @@ function BookshelfWidget:_showHardcoverReviews(book, opts)
         UIManager:show(ReviewsModal:new{
             title      = _("Hardcover reviews"),
             html_body  = html,
+            -- Return to the caller (e.g. the book menu) when dismissed, but
+            -- only if one was supplied -- the hero "N reviews" tap passes
+            -- none, so it just closes.
+            on_close   = opts.on_close,
             on_refresh = function()
-                self:_showHardcoverReviews(book, { force = true })
+                self:_showHardcoverReviews(book, { force = true, on_close = opts.on_close })
             end,
         })
+    end
+
+    -- Cache-first: if reviews are already cached and this isn't a forced
+    -- refresh, show them immediately -- no "Fetching..." flash and no network
+    -- round-trip. This is the common case (e.g. the hero tap); the previous
+    -- code always showed the progress toast, which then overlapped the
+    -- already-rendered modal.
+    if not opts.force then
+        local ok_cached, cached = Hardcover.fetchReviews(book_id, { cache_only = true })
+        if ok_cached and type(cached) == "table" then
+            showModal(cached)
+            return
+        end
+    end
+
+    -- Cache miss or forced refresh: now we're genuinely fetching, so the
+    -- progress message earns its place.
+    UIManager:show(InfoMessage:new{
+        text = _("Fetching Hardcover reviews..."),
+        timeout = 1,
+    })
+    Hardcover.fetchReviewsOnline(book_id, {
+        force = opts.force == true,
+    }, function(ok, result)
+        if not ok then
+            UIManager:show(InfoMessage:new{
+                text = _("Hardcover reviews could not be fetched: ") .. tostring(result),
+                icon = "notice-warning",
+                timeout = 5,
+            })
+            if opts.on_close then opts.on_close() end
+            return
+        end
+        showModal(result)
     end)
 end
 
