@@ -350,7 +350,7 @@ function Settings:_heroSubItems()
         }
     end
     for _i, key in ipairs(Regions.ORDER) do
-        items[#items + 1] = {
+        local item = {
             keep_menu_open = true,
             text_func = function()
                 local label    = _(Regions.LABELS[key] or key)
@@ -375,10 +375,10 @@ function Settings:_heroSubItems()
                 return not Regions.read()[key].disabled
             end,
             callback = function(touchmenu_instance)
-                -- Rating + Tags are interactive widgets, not text-templated
-                -- regions — a line editor for them is meaningless. Tap on
-                -- the row toggles enabled, same as hold elsewhere.
-                if key == "rating" or key == "tags" then
+                -- Rating is an interactive widget, not a text-templated
+                -- region — a line editor for it is meaningless. Tap toggles
+                -- enabled, same as hold elsewhere.
+                if key == "rating" then
                     self:_toggleRegionEnabled(key, touchmenu_instance)
                     return
                 end
@@ -388,8 +388,127 @@ function Settings:_heroSubItems()
                 self:_toggleRegionEnabled(key, touchmenu_instance)
             end,
         }
+        if key == "tags" then
+            -- Tags is interactive AND configurable (#99): the row opens a
+            -- submenu (enable + per-category visibility + font size +
+            -- alignment) instead of a plain enable toggle. Drop the toggle
+            -- callbacks and the checkbox; the submenu carries the enable
+            -- switch itself.
+            item.checked_func   = nil
+            item.callback       = nil
+            item.hold_callback  = nil
+            item.sub_item_table_func = function()
+                return self:_tagsRegionSubItems()
+            end
+        end
+        items[#items + 1] = item
     end
     return items
+end
+
+-- _tagsRegionSubItems() — the "Tags (interactive)" configuration submenu
+-- (#99). Enable switch, per-category visibility checkboxes, font size, and
+-- alignment. Each control writes one merged field on the tags region and
+-- live-refreshes the hero (which re-reads the config on its next pill
+-- build) so the change is visible behind the open menu.
+function Settings:_tagsRegionSubItems()
+    local Regions = require("lib/bookshelf_hero_regions")
+    -- Merge one field into the tags region and refresh. _swapHeroInPlace
+    -- rebuilds the hero card (recreating the tags pill builder), so the
+    -- new categories / font / alignment show immediately.
+    local function setTagsField(field, value, touchmenu_instance)
+        local snap = Regions.snapshot("tags") or {}
+        snap[field] = value
+        Regions.write("tags", snap)
+        if self._bw and self._bw._swapHeroInPlace then
+            self._bw:_swapHeroInPlace()
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+    -- A category visibility checkbox row. show_<cat> defaults true (every
+    -- category shown == pre-#99 behaviour), so nil reads as on.
+    local function categoryRow(field, label, separator)
+        return {
+            text = label,
+            checked_func = function() return Regions.read().tags[field] ~= false end,
+            keep_menu_open = true,
+            separator = separator,
+            callback = function(touchmenu_instance)
+                setTagsField(field, Regions.read().tags[field] == false,
+                             touchmenu_instance)
+            end,
+        }
+    end
+    local function alignmentRow(value, label)
+        return {
+            text = label,
+            radio = true,
+            checked_func = function()
+                return (Regions.read().tags.alignment or "left") == value
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                setTagsField("alignment", value, touchmenu_instance)
+            end,
+        }
+    end
+    return {
+        {
+            text = _("Show tags line"),
+            checked_func = function() return not Regions.read().tags.disabled end,
+            keep_menu_open = true,
+            separator = true,
+            callback = function(touchmenu_instance)
+                setTagsField("disabled", not Regions.read().tags.disabled,
+                             touchmenu_instance)
+            end,
+        },
+        categoryRow("show_author",      _("Author")),
+        categoryRow("show_series",      _("Series")),
+        categoryRow("show_collections", _("Collections")),
+        categoryRow("show_genres",      _("Genres")),
+        categoryRow("show_folder",      _("Folder"), true),
+        {
+            text_func = function()
+                return _("Font size") .. ": "
+                    .. tostring(Regions.read().tags.font_size or 12)
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                -- Same bookends-style nudge dialog the hero line editor uses
+                -- for text-region sizes. Hide the settings menu first so the
+                -- live hero is visible while nudging; restoreMenu reopens THIS
+                -- submenu (and refreshes its rows) when the nudge closes.
+                local LineEditor  = require("lib/bookshelf_hero_line_editor")
+                local restoreMenu = LineEditor.hideParentMenu(touchmenu_instance)
+                local cur     = Regions.read().tags.font_size or 12
+                local default = Regions.DEFAULTS.tags.font_size or 12
+                LineEditor.showSizeNudge(
+                    cur, default,
+                    -- on_change: persist + live-refresh the hero each nudge.
+                    -- No touchmenu_instance (it's hidden), so no menu update.
+                    function(val) setTagsField("font_size", val) end,
+                    -- on_close: reopen the settings submenu.
+                    function() restoreMenu() end,
+                    { title = _("Tags font size") })
+            end,
+        },
+        {
+            text_func = function()
+                local a = Regions.read().tags.alignment or "left"
+                local labels = { left = _("Left"), center = _("Centre"), right = _("Right") }
+                return _("Alignment") .. ": " .. (labels[a] or labels.left)
+            end,
+            keep_menu_open = true,
+            sub_item_table = {
+                alignmentRow("left",   _("Left")),
+                alignmentRow("center", _("Centre")),
+                alignmentRow("right",  _("Right")),
+            },
+        },
+    }
 end
 
 -- _editHeroRegion(key, touchmenu_instance) — open the line editor for a

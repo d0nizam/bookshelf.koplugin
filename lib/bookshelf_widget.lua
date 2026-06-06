@@ -2698,16 +2698,30 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
             local bw = self
             tags_builder = function(book)
                 if not book or not book.filepath then return nil end
+                -- Read the tags-region config fresh each call (not captured)
+                -- so a live in-place hero refresh after a settings change
+                -- reflects new categories / font size / alignment without a
+                -- full rebuild. read() returns the shared memoised table.
+                local tcfg = require("lib/bookshelf_hero_regions").read().tags or {}
+                -- #99: per-category visibility filter for the hero pill strip.
+                -- Hero only -- the long-press book menu passes nil (all shown).
+                local filter = {
+                    author      = tcfg.show_author ~= false,
+                    series      = tcfg.show_series ~= false,
+                    collections = tcfg.show_collections ~= false,
+                    genres      = tcfg.show_genres ~= false,
+                    folder      = tcfg.show_folder ~= false,
+                }
                 local ReadCollection = require("readcollection")
                 local in_collections = ReadCollection.getCollectionsWithFile
                     and ReadCollection:getCollectionsWithFile(book.filepath) or {}
-                local pill_specs = bw:_buildPillSpecs(book, in_collections, nil)
+                local pill_specs = bw:_buildPillSpecs(book, in_collections, nil, filter)
                 -- Scale the tag pills with the Hero card font-size knob, so the
-                -- whole hero (text + tags) grows/shrinks together. Base 12 = the
-                -- prior fixed size, so 100% is unchanged.
+                -- whole hero (text + tags) grows/shrinks together. The region's
+                -- font_size is the base (default 12 = prior fixed size).
                 local hero_scale = (BookshelfSettings.read("font_scale") or 100) / 100
-                local pill_size  = math.max(8, math.floor(12 * hero_scale + 0.5))
-                return bw:_buildPillGroup(pill_specs, pill_w, 2, pill_size)
+                local pill_size  = math.max(8, math.floor((tcfg.font_size or 12) * hero_scale + 0.5))
+                return bw:_buildPillGroup(pill_specs, pill_w, 2, pill_size, tcfg.alignment or "left")
             end
         end
     end
@@ -6941,9 +6955,16 @@ end
 -- close_cb is invoked AFTER each pill's drill action so the parent
 -- dialog dismisses on tap. Tappable pills include: author, series,
 -- collections, deduped genres, and folder.
-function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb)
+function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb, filter)
     if not book then return {} end
     local bw   = self
+    -- #99: optional per-category filter for the hero tags line. nil shows
+    -- every category (the long-press book menu's pill strip passes nil, so
+    -- it is unaffected). A category is hidden only when filter sets it
+    -- explicitly false.
+    local function _show(cat)
+        return (filter == nil) or (filter[cat] ~= false)
+    end
     local ReadCollection = require("readcollection")
     local default_coll_name = ReadCollection.default_collection_name
     local function _wrap(drill_fn)
@@ -6962,7 +6983,7 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb)
     -- so the pill matches the form used elsewhere (hero, Authors chip).
     -- Drilldown still keys on the RAW author so the lookup matches the
     -- group regardless of which form the user has selected.
-    if book.author and book.author ~= "" then
+    if _show("author") and book.author and book.author ~= "" then
         local author_name = book.author
         local display_author = author_name
         local fmt = BookshelfSettings.read("author_format") or "auto"
@@ -6990,7 +7011,7 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb)
     -- pill reads "[Southern Reach #2]" rather than the bare series
     -- name. Tapping still drills into the series view; the number is
     -- decoration on the pill itself.
-    if book.series_name and book.series_name ~= "" then
+    if _show("series") and book.series_name and book.series_name ~= "" then
         local series_name  = book.series_name
         local series_label = series_name
         if book.series_num then
@@ -7022,7 +7043,7 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb)
         if v then coll_names[#coll_names + 1] = n end
     end
     table.sort(coll_names, function(a, b) return a:lower() < b:lower() end)
-    for _i, coll_name in ipairs(coll_names) do
+    for _i, coll_name in ipairs(_show("collections") and coll_names or {}) do
         local display = (coll_name == default_coll_name) and _("Favourites") or coll_name
         pill_specs[#pill_specs + 1] = {
             label  = display,
@@ -7047,12 +7068,15 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb)
 
     -- 4. Genres -- deduped against series name and collections so the
     -- same string doesn't render twice.
-    if book.genres and #book.genres > 0 then
+    if _show("genres") and book.genres and #book.genres > 0 then
         local _seen = {}
-        if book.series_name and book.series_name ~= "" then
+        -- Only dedup against categories that are actually on screen: if
+        -- series / collections are hidden, a genre that happens to match one
+        -- isn't a visible duplicate, so let it show.
+        if _show("series") and book.series_name and book.series_name ~= "" then
             _seen[book.series_name:lower()] = true
         end
-        for _i, coll_name in ipairs(coll_names) do
+        for _i, coll_name in ipairs(_show("collections") and coll_names or {}) do
             _seen[coll_name:lower()] = true
             -- Localised display too -- "Favourites" UI label could collide
             -- with a same-named genre.
@@ -7091,7 +7115,7 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb)
             end
         end
     end
-    if parent_dir and parent_dir ~= "" and parent_dir ~= home_dir then
+    if _show("folder") and parent_dir and parent_dir ~= "" and parent_dir ~= home_dir then
         local folder_label = parent_dir:match("([^/]+)$") or parent_dir
         pill_specs[#pill_specs + 1] = {
             label  = folder_label,
@@ -7112,7 +7136,7 @@ end
 -- into a non-tappable "+N" pill. Returns a VerticalGroup (possibly
 -- empty if pill_specs is empty / nil). Pure widget builder — no state
 -- on self other than what the spec callbacks capture.
-function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size)
+function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align)
     local Font            = require("ui/font")
     local TextWidget_     = require("ui/widget/textwidget")
     local FrameContainer_ = require("ui/widget/container/framecontainer")
@@ -7124,7 +7148,11 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     local GestureRange_    = require("ui/gesturerange")
 
     max_rows = max_rows or 2
-    local pill_group = VerticalGroup_:new{ align = "left" }
+    -- align controls horizontal placement of the pill block (#99). Rows
+    -- align within the block; the block is then aligned within available_w
+    -- by the wrapper at the end.
+    local row_align = (align == "center" or align == "right") and align or "left"
+    local pill_group = VerticalGroup_:new{ align = row_align }
     if not pill_specs or #pill_specs == 0 then return pill_group end
 
     local pill_face, pill_bold = BFont:getFace("cfont", base_size or 12, { bold = true })
@@ -7252,6 +7280,10 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
         end
         pill_group[#pill_group + 1] = row_widget
     end
+    -- row_align (set above) aligns each row WITHIN the block when rows have
+    -- unequal widths. Aligning the whole block within the hero column is the
+    -- caller's job (the hero wraps this in a Left/Centre/Right container at
+    -- the authoritative column width).
     return pill_group
 end
 
