@@ -289,6 +289,17 @@ function RoundedCornerCard:paintTo(bb, x, y)
         local w, h    = self.width, self.height
         local bg      = self.bg_color or Blitbuffer.COLOR_WHITE
         local r_sq    = r * r
+        -- Resolve the shadow grey LIVE here, not from self.shadow_color
+        -- (captured at build time). ShadowRect:paintTo also calls _shadowGray()
+        -- live, so the enclosing shadow repaints with the current day/night
+        -- grey on every paint. The corner mask captured its colour once at
+        -- build, so after a day<->night switch (which repaints the card
+        -- without rebuilding it) the masked BR corner kept the OLD grey while
+        -- the surrounding shadow had the new one -- the mismatched corner
+        -- artifact in night mode (issue #93). self.shadow_color stays as the
+        -- "is this card shadowed?" flag + geometry gate; only the painted
+        -- value is now live.
+        local shadow_paint = self.shadow_color and _shadowGray() or nil
         -- For each row dy in [0, r), the arc test is monotonic in dx — there's
         -- exactly one transition from "outside arc" (paint) to "inside arc"
         -- (skip). We binary-search-equivalent it with a forward scan and emit
@@ -330,7 +341,7 @@ function RoundedCornerCard:paintTo(bb, x, y)
                         local px = w - cutoff_bot + dx
                         local py = h - r + dy
                         local color = self:_pixelInShadow(px, py)
-                                          and self.shadow_color or bg
+                                          and shadow_paint or bg
                         bb:setPixel(x + px, y + py, color)
                     end
                 else
