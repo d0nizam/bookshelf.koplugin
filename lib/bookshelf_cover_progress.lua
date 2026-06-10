@@ -135,20 +135,34 @@ function M.decide(book)
     -- accepted here for back-compat with any cached records that
     -- predate the normalisation.
     if status == "abandoned" or status == "on_hold" then
-        -- On-hold gets its own treatment: a centred pause-circle badge
-        -- (rendered by SpineWidget) that, when enabled, REPLACES the
-        -- bottom-left in-progress bookmark so the cover carries one clear
-        -- "on hold" signal. The top-edge bar + page count keep their own
-        -- toggles. With the badge disabled we fall back to the old
-        -- reading-style in-progress bookmark. on_hold_badge_enabled
-        -- defaults ON (via _toggle's nil -> true).
-        local show_on_hold = _toggle("on_hold_badge_enabled")
+        -- On-hold gets its own treatment, split into two independently
+        -- selectable cues (issue #121 -- one reporter wants fade-only for
+        -- DNF books, another wants badge-only because they do intend to
+        -- return to the book): the centred pause-circle badge and the
+        -- faded/recessed cover (both rendered by SpineWidget). Four-state
+        -- on_hold_display: "none" / "pause" / "fade" / "both" (default).
+        -- Legacy boolean on_hold_badge_enabled is honoured as a fallback
+        -- when the new key is unset -- it used to gate BOTH cues, so
+        -- false -> "none", true / nil -> "both". The settings menu runs
+        -- the same migration so the rendering side and the menu agree.
+        -- Either cue REPLACES the bottom-left in-progress bookmark so the
+        -- cover carries one clear "on hold" signal; with both off we fall
+        -- back to the old reading-style bookmark. The top-edge bar + page
+        -- count keep their own toggles.
+        local mode = BookshelfSettings.read("on_hold_display")
+        if mode ~= "none" and mode ~= "pause" and mode ~= "fade" and mode ~= "both" then
+            local legacy = BookshelfSettings.read("on_hold_badge_enabled")
+            mode = (legacy == false) and "none" or "both"
+        end
+        local badge = mode == "pause" or mode == "both"
+        local fade  = mode == "fade"  or mode == "both"
         return {
-            bar        = want_bar and (pct ~= nil),
-            bar_pct    = pct or 0,
-            glyph      = (not show_on_hold) and want_bookmark and "in_progress" or nil,
-            on_hold    = show_on_hold or nil,
-            page_count = want_page_count,
+            bar          = want_bar and (pct ~= nil),
+            bar_pct      = pct or 0,
+            glyph        = mode == "none" and want_bookmark and "in_progress" or nil,
+            on_hold      = badge or nil,
+            on_hold_fade = fade or nil,
+            page_count   = want_page_count,
         }
     elseif status == "reading" then
         return {

@@ -616,9 +616,11 @@ function SpineWidget:_renderShadowedCard(inner)
 
     local children = {}
 
-    -- 1. Shadow OR selection-border backdrop (z-order: bottom). On-hold
-    --    covers (faded, borderless — see _wrapCoverInCard) also drop the
+    -- 1. Shadow OR selection-border backdrop (z-order: bottom). FADED
+    --    on-hold covers (borderless — see _wrapCoverInCard) also drop the
     --    shadow so they sit flat against the page; same gate as the fade.
+    --    Badge-only on-hold covers (on_hold_display = "pause") keep their
+    --    border and shadow like any other book (issue #121).
     if self.is_selected then
         children[#children + 1] = BorderOverlay:new{
             width     = card_w,
@@ -626,7 +628,7 @@ function SpineWidget:_renderShadowedCard(inner)
             thickness = SELECTED_BORDER,
             radius    = CARD_RADIUS,
         }
-    elseif not (indicators.on_hold and not self.is_bulk_selected) then
+    elseif not (indicators.on_hold_fade and not self.is_bulk_selected) then
         children[#children + 1] = FrameContainer:new{
             bordersize   = 0,
             padding      = 0,
@@ -1295,23 +1297,25 @@ end
 -- from _renderCover so the cache-hit and bb-rendering paths share the
 -- same trailing wrap.
 function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
-    -- On-hold books are fully recessed: faded toward the page background, no
-    -- border, and no drop shadow (the shadow is skipped in the same condition
-    -- in _renderShadowedCard). show_progress is set only on grid covers (the
+    -- Faded on-hold books are fully recessed: faded toward the page
+    -- background, no border, and no drop shadow (the shadow is skipped in
+    -- the same condition in _renderShadowedCard). Gated on on_hold_fade,
+    -- not the pause badge -- on_hold_display = "pause" keeps normal cover
+    -- chrome (issue #121). show_progress is set only on grid covers (the
     -- hero / folder / series stacks reuse SpineWidget but clear it), so this
     -- is grid-only by construction. Excluded while selected (current-book
     -- ring) or bulk-selected, which own their cover chrome.
-    local on_hold = self.show_progress
+    local on_hold_fade = self.show_progress
         and not self.is_selected and not self.is_bulk_selected
-        and CoverProgress.decide(self.book).on_hold or false
+        and CoverProgress.decide(self.book).on_hold_fade or false
     local cover_args = {
         inner       = cover_inner,
         width       = card_w,
         height      = card_h,
         radius      = CARD_RADIUS,
-        border_size = on_hold and 0 or border,
+        border_size = on_hold_fade and 0 or border,
     }
-    if on_hold then
+    if on_hold_fade then
         cover_args.fade_by = ON_HOLD_FADE
         -- No shadow_color: with the drop shadow removed the corner mask must
         -- restore plain page bg, not shadow grey.
