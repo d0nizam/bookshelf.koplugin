@@ -4080,10 +4080,16 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- page slice is rebuilt with full _safeBuildBookMeta below, so
         -- covers are still rendered correctly -- just for 8 books instead
         -- of 3000.
-        local function loadCandidatesByPredicate(pred)
+        local function loadCandidatesByPredicate(pred, walk_root)
             local home  = G_reader_settings:readSetting("home_dir") or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
-            local cands = cachedWalk(home, depth)
+            -- walk_root lets a folder-scoped source (folder_flat, #76) walk
+            -- its own subtree directly instead of the whole home tree --
+            -- correct for folders OUTSIDE home_dir (Browse device), where a
+            -- home-rooted walk + prefix filter would find nothing. The light
+            -- metadata batch stays keyed to home; entries outside it fall
+            -- back to a per-file build in _lightMetaForFp.
+            local cands = cachedWalk(walk_root or home, depth)
             -- Pull the whole library's light metadata in a single batch
             -- SELECT instead of one prepared-statement call per file. On a
             -- 2000-book Calibre library that's ~50ms (one SQLite roundtrip)
@@ -4173,6 +4179,14 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             candidates = loadCandidatesByPredicate(function(b)
                 return type(b.filepath) == "string" and b.filepath:sub(1, #prefix) == prefix
             end)
+        elseif kind == "folder_flat" then
+            -- Flattened folder (#76): every book under source.id at any
+            -- depth, no folder cards -- the folder equivalent of "library"
+            -- (Home flattened). Walk the folder root directly so it works
+            -- for folders both inside and outside home_dir; the walk is
+            -- already scoped to the subtree, so the predicate is tautological.
+            candidates = loadCandidatesByPredicate(function(_b) return true end,
+                (source.id or ""):gsub("/+$", ""))
         elseif kind == "collection" then
             local rc  = require("readcollection")
             local set = {}

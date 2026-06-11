@@ -6637,7 +6637,7 @@ end
 -- a one-time-use bb -- ImageWidget frees it after first paint, which
 -- means the bb in `book` itself (potentially shared with other UI) is
 -- never touched. Same disposable-bb invariant as the hero card.
-function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs)
+function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, bookmark_action)
     if not book or not book.filepath then return nil end
     local Font           = require("ui/font")
     local ImageWidget    = require("ui/widget/imagewidget")
@@ -6653,7 +6653,10 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs)
     -- Caller can pass override_width (e.g. the collection manager, which
     -- nests inside the book menu and needs a narrower header).
     local sw = Screen:getWidth()
-    local header_w = override_width or math.floor(sw * 0.82)
+    -- Fill most of the dialog width so the cover + text don't sit in a
+    -- narrow centred column with wide margins (the button rows below span
+    -- wider). Caller override (collection manager) still wins.
+    local header_w = override_width or math.floor(sw * 0.92)
     -- Cover thumbnail is the visual anchor of the header; size it large
     -- enough that the title block on a real cover is legible, but not
     -- so large the menu starts to dominate the screen. Height is
@@ -6766,6 +6769,42 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs)
         end
     end
 
+    -- Bookmark link (#67): "N bookmark(s) ›" in the header's top-right
+    -- corner, opening KOReader's bookmark browser. A text link rather than
+    -- a bare icon -- clearer, and the count says what's there. Built only
+    -- when bookmark_action is passed (book has annotations + browser
+    -- available). Reserve its width off the text column so a long title
+    -- doesn't run under it.
+    local bm_link, bm_reserve = nil, 0
+    if bookmark_action then
+        local n = bookmark_action.count
+        local bm_text = (n == 1 and _("1 bookmark") or T(_("%1 bookmarks"), n))
+            .. "  \xE2\x80\xBA"  -- › : "go to" chevron
+        local bm_face, bm_bold = BFont:getFace("cfont", 16, { bold = true })
+        local bm_label = TextWidget_:new{ text = bm_text, face = bm_face, bold = bm_bold }
+        local bm_frame = FrameContainer:new{
+            bordersize    = 0,
+            margin        = 0,
+            padding       = 0,
+            padding_top   = Size.padding.large,
+            padding_right = Size.padding.large,
+            bm_label,
+        }
+        local bm_sz = bm_frame:getSize()
+        bm_link = InputContainer:new{
+            dimen = Geom:new{ w = bm_sz.w, h = bm_sz.h },
+            bm_frame,
+        }
+        bm_link.ges_events = {
+            Tap = { GestureRange:new{ ges = "tap", range = bm_link.dimen } },
+        }
+        bm_link.onTap = function() bookmark_action.on_tap(); return true end
+        bm_reserve = bm_sz.w + Size.padding.default
+    end
+    -- Full text-column width: the header stays full width regardless of the
+    -- bookmark link. Only the TITLE row reserves space for the link (below),
+    -- so the link overlays the title's right-hand whitespace without
+    -- shrinking the whole header (which read as wide side margins).
     local text_w = thumb_widget and (header_w - thumb_w - gap_w) or header_w
 
     -- Top of text column: title (bold) + author + one-line metadata
@@ -6773,15 +6812,17 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs)
     -- info is no longer rendered here -- it lives as a tappable pill
     -- in the nav strip below.
     local top_stack = VerticalGroup_:new{ align = "left" }
-    local mtitle_face, mtitle_bold = BFont:getFace("smalltfont", 20, { bold = true })
+    local mtitle_face, mtitle_bold = BFont:getFace("smalltfont", 22, { bold = true })
     top_stack[#top_stack + 1] = TextBoxWidget_:new{
         text  = book.title or book.filename or _("(no title)"),
         face  = mtitle_face,
         bold  = mtitle_bold,
-        width = text_w,
+        -- Title wraps before the top-right bookmark link (bm_reserve = 0
+        -- when there's no link, so this is the full width otherwise).
+        width = text_w - bm_reserve,
     }
     if book.author and book.author ~= "" then
-        local mauthor_face, mauthor_bold = BFont:getFace("cfont", 16)
+        local mauthor_face, mauthor_bold = BFont:getFace("cfont", 18)
         top_stack[#top_stack + 1] = TextBoxWidget_:new{
             text  = book.author,
             face  = mauthor_face,
@@ -6793,7 +6834,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs)
     -- Metadata + filename block: cheap-to-fetch supporting detail in a
     -- compact bottom slice of the top stack. Each chunk skipped when
     -- its source is unavailable.
-    local meta_face, meta_bold = BFont:getFace("cfont", 12)
+    local meta_face, meta_bold = BFont:getFace("cfont", 14)
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
     local size_bytes, mtime
     if ok_lfs and lfs and lfs.attributes then
@@ -6868,7 +6909,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs)
     -- passes nil because it doesn't want nav-into-self affordances.
     local pill_group = VerticalGroup_:new{ align = "left" }
     if pill_specs and #pill_specs > 0 then
-        local pill_face, pill_bold = BFont:getFace("cfont", 12, { bold = true })
+        local pill_face, pill_bold = BFont:getFace("cfont", 13, { bold = true })
         local pill_pad_h  = Size.padding.default  -- L/R inner padding
         local pill_pad_v  = Size.padding.small    -- T/B inner padding
         local pill_gap    = Size.padding.default  -- between pills
@@ -7056,13 +7097,31 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs)
     -- info_padding all around; this FrameContainer adds Size.padding.large
     -- on top + bottom so the cover gets a balanced visual frame
     -- (matching the left gap from dialog edge to cover).
-    return FrameContainer:new{
+    local header_frame = FrameContainer:new{
         bordersize     = 0,
         margin         = 0,
         padding        = 0,
         padding_top    = Size.padding.large,
         padding_bottom = Size.padding.large,
         body,
+    }
+    if not bm_link then
+        return header_frame
+    end
+    -- Overlay the bookmark link in the top-right corner. RightContainer
+    -- right-aligns it to the header width; the height-bounded dimen keeps
+    -- it in the top band, and the link's own padding_top aligns it with
+    -- the title. Same corner-anchoring idiom the hero card uses.
+    local RightContainer = require("ui/widget/container/rightcontainer")
+    local OverlapGroup   = require("ui/widget/overlapgroup")
+    local hsize = header_frame:getSize()
+    return OverlapGroup:new{
+        dimen = Geom:new{ w = hsize.w, h = hsize.h },
+        header_frame,
+        RightContainer:new{
+            dimen = Geom:new{ w = hsize.w, h = bm_link:getSize().h },
+            bm_link,
+        },
     }
 end
 
@@ -8063,6 +8122,10 @@ function BookshelfWidget:_openBookMenu(item)
     -- call UIManager:close itself. Wrap with a closing helper so all callbacks
     -- close the dialog after their action runs.
     local dialog
+    -- Declared here (not at its detection block below) so _reinitDialog's
+    -- in-place header rebuild can re-pass it and the bookmark link survives
+    -- staging a status / rating change.
+    local bookmark_action
     local function closing(fn)
         return function()
             if fn then fn() end
@@ -8092,7 +8155,7 @@ function BookshelfWidget:_openBookMenu(item)
     local function _reinitDialog()
         if not (dialog and dialog.reinit) then return end
         if dialog._added_widgets then
-            local new_header = bw:_buildBookMenuHeader(book, nil, pill_specs)
+            local new_header = bw:_buildBookMenuHeader(book, nil, pill_specs, bookmark_action)
             if new_header then
                 dialog._added_widgets[1] = new_header
             end
@@ -8864,12 +8927,58 @@ function BookshelfWidget:_openBookMenu(item)
     buttons[#buttons + 1] = { select_btn, cancel_btn, apply_btn }
 
     dialog = ButtonDialog:new{ buttons = buttons }
+    -- Close the menu if a book is opened from underneath us -- e.g. the
+    -- bookmark browser's "View in book" navigates into the reader. KOReader
+    -- broadcasts ShowingReader as the reader takes over (same hook
+    -- FileManager uses to tear itself down); without this the menu would
+    -- linger on top of the opening book. A plain browser-close sends no
+    -- such event, so the menu still persists then -- the intended
+    -- peek-then-return behaviour.
+    dialog.onShowingReader = function()
+        UIManager:close(dialog)
+    end
+
+    -- Bookmark-browser shortcut (#67): a "N bookmark(s) ›" link in the
+    -- header's top-right corner (NOT a full-width button -- it's a
+    -- contextual peek, not a file action). Built only when this KOReader
+    -- build has the browser widget AND the book actually has annotations
+    -- (bookmarks / highlights / notes) to show, so books with nothing show no link and
+    -- the icon never opens an empty browser. hasSidecarFile gates the
+    -- DocSettings open, so never-opened books (no sidecar) pay nothing.
+    do
+        local ok_bb, BookmarkBrowser = pcall(require, "ui/widget/bookmarkbrowser")
+        if ok_bb and BookmarkBrowser and book.filepath then
+            local DocSettings = require("docsettings")
+            if DocSettings:hasSidecarFile(book.filepath) then
+                local ok_ds, ds = pcall(DocSettings.open, DocSettings, book.filepath)
+                local ann = ok_ds and ds and ds:readSetting("annotations")
+                if type(ann) == "table" and #ann > 0 then
+                    local fp = book.filepath
+                    bookmark_action = {
+                        count  = #ann,
+                        on_tap = function()
+                            -- Leave the book menu OPEN underneath: the browser
+                            -- shows on top, and closing it returns to the menu.
+                            local FileManager = require("apps/filemanager/filemanager")
+                            -- files must be a SET keyed by filepath:
+                            -- getBookList iterates `for file in pairs(files)`
+                            -- and uses the KEY as the path (an array would
+                            -- yield integer keys -> a downstream crash).
+                            BookmarkBrowser:show({ [fp] = true }, FileManager.instance)
+                        end,
+                    }
+                end
+            end
+        end
+    end
+
     -- Cover thumbnail + title/author/metadata/filename header above
     -- the button rows, with the tappable nav pill strip at the bottom
     -- of the header. addWidget composes header into the dialog's
     -- title group; no title= field on the dialog itself -- the header
-    -- carries the book identity.
-    local header = self:_buildBookMenuHeader(book, nil, pill_specs)
+    -- carries the book identity. bookmark_action (when set) draws the
+    -- "N bookmark(s) ›" link in the header's top-right corner.
+    local header = self:_buildBookMenuHeader(book, nil, pill_specs, bookmark_action)
     if header then
         dialog:addWidget(header)
     end

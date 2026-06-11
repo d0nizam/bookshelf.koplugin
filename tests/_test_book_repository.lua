@@ -1440,6 +1440,32 @@ test("getBySource: folder honours sort_priority via getAll override", function()
            "expected Alpha second, got " .. tostring(list[2].title))
 end)
 
+test("getBySource: folder_flat returns all books recursively, no folder cards", function()
+    -- #76: a flattened folder chip lists every book under the path at any
+    -- depth, with NO subfolder cards (unlike the "folder" tree view). So a
+    -- flatten of /lib pulls alpha + bravo (comics) + charlie (novels) = 3
+    -- book records, and none of them is a folder card.
+    _setupResolverLibrary()
+    local list, total = Repo.getBySource({ kind = "folder_flat", id = "/lib" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(type(list) == "table", "expected table, got " .. type(list))
+    assert(#list == 3, "expected 3 books flattened under /lib, got " .. #list)
+    assert(total == 3, "expected total=3, got " .. tostring(total))
+    for _i, it in ipairs(list) do
+        assert(it.kind ~= "folder", "flattened view must not contain folder cards")
+        assert(type(it.filepath) == "string", "expected a book record with a filepath")
+    end
+end)
+
+test("getBySource: folder_flat scoped to a subfolder lists only its books", function()
+    -- Flatten of a subfolder is bounded to that subtree's books.
+    _setupResolverLibrary()
+    local list, total = Repo.getBySource({ kind = "folder_flat", id = "/lib/comics" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(#list == 2, "expected 2 books under /lib/comics, got " .. #list)
+    assert(total == 2, "expected total=2, got " .. tostring(total))
+end)
+
 -- ============================================================================
 -- getBySource cache hit/miss + invalidation
 -- ============================================================================
