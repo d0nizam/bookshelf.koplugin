@@ -302,11 +302,22 @@ function IconsLibrary._renderCell(item, dimen)
     local TextWidget = require("ui/widget/textwidget")
     local BFont = require("lib/bookshelf_fonts")
     local glyph_size = math.max(36, math.floor(dimen.w * 0.16))
-    local glyph_w = TextWidget:new{
-        text = item.glyph or "",
-        face = Font:getFace("symbols", glyph_size),
-        fgcolor = Blitbuffer.COLOR_BLACK,
-    }
+    local glyph_w
+    if item.is_image then
+        local IconWidget = require("ui/widget/iconwidget")
+        glyph_w = IconWidget:new{
+            icon = item.icon,
+            width = glyph_size,
+            height = glyph_size,
+            alpha = true,   -- render as-is (SVG/PNG own colours honoured)
+        }
+    else
+        glyph_w = TextWidget:new{
+            text = item.glyph or "",
+            face = Font:getFace("symbols", glyph_size),
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+    end
     local label_face = (BFont:getFace("cfont", 11))
     local label_w = TextWidget:new{
         text = item.label or "",
@@ -335,6 +346,10 @@ end
 
 -- Brief notification with the canonical name + codepoint on long-tap.
 function IconsLibrary._showCellTooltip(item)
+    if item.is_image then
+        UIManager:show(Notification:new{ text = item.label or "", timeout = 3 })
+        return
+    end
     if not item.canonical then return end
     local code_str = item.code and string.format("U+%04X", item.code) or ""
     local body = item.canonical .. (code_str ~= "" and (" \xC2\xB7 " .. code_str) or "")
@@ -449,6 +464,27 @@ function IconsLibrary:show(on_select, opts)
         end,
         cell_renderer = IconsLibrary._renderCell,
         cell_long_tap = IconsLibrary._showCellTooltip,
+        -- Full-width guidance shown only when the SVG chip is active and the
+        -- user's koreader/icons/ folder is empty. Returns nil for any other
+        -- empty view (e.g. a search with no hits) so those fall through to the
+        -- normal empty grid.
+        empty_state = function(content_width, area_height)
+            if state.active_chip ~= "svg" or state.search_query or not state.allow_svg then
+                return nil
+            end
+            local Font = require("ui/font")
+            local TextWidget = require("ui/widget/textwidget")
+            local msg = TextWidget:new{
+                text = _("Drop .svg or .png files in koreader/icons/"),
+                face = Font:getFace("cfont", 16),
+                fgcolor = Blitbuffer.COLOR_BLACK,
+                max_width = content_width - Screen:scaleBySize(24),
+            }
+            return CenterContainer:new{
+                dimen = Geom:new{ w = content_width, h = area_height },
+                msg,
+            }
+        end,
         on_cell_tap = function(item)
             local val = item.insert_value or item.glyph
             if self_ref.modal then UIManager:close(self_ref.modal); self_ref.modal = nil end
