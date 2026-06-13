@@ -1605,13 +1605,16 @@ function BookshelfWidget:_rebuild()
             allow_mirroring = false,
             empty_frame,
         }
-        if self._selection:isActive() then
-            local empty_footer = self:_buildFooterRow(content_w, 1, FOOTER_H)
-            empty_overlap[#empty_overlap + 1] = BottomContainer:new{
-                dimen = Geom:new{ w = self.width, h = self.height - FOOTER_BOTTOM_MARGIN },
-                empty_footer,
-            }
-        end
+        -- Always build the footer on an empty tab: it hosts the start-menu
+        -- hamburger (and, in selection mode, the bucket+✕ bar). The gate
+        -- used to be `if self._selection:isActive()`, which dropped the
+        -- launcher whenever a tab had no items -- e.g. an empty Series tab
+        -- left the user with no way to open the start menu.
+        local empty_footer = self:_buildFooterRow(content_w, 1, FOOTER_H)
+        empty_overlap[#empty_overlap + 1] = BottomContainer:new{
+            dimen = Geom:new{ w = self.width, h = self.height - FOOTER_BOTTOM_MARGIN },
+            empty_footer,
+        }
         self[1] = empty_overlap
         logger.dbg(string.format("[bookshelf perf] _rebuild: EMPTY total=%.0fms chip=%s",
             (_gettime() - _perf_t0) * 1000, _perf_chip))
