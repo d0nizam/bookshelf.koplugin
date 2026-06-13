@@ -503,8 +503,15 @@ function Repo.buildBookMeta(filepath, opts)
     if cb_series then
         series_name = cb_series
     elseif info.series then
-        series_name = info.series:gsub(" #%d+$", "")
-        series_num  = info.series:match(" #(%d+)$")
+        -- Guard empty / whitespace / name-less ("#3") embedded series: the
+        -- Calibre branch above already drops cb.series == "", so mirror it
+        -- here. Without this an empty series_name bucketed the book into a
+        -- junk single-book series stack even though KOReader's book info
+        -- shows the series as N/A (issue #127, non-Calibre libraries).
+        local sname = info.series:gsub(" #%d+$", "")
+        sname = sname:match("^%s*(.-)%s*$")  -- trim
+        if sname ~= "" then series_name = sname end
+        series_num = info.series:match(" #(%d+)$")
     end
     if cb and type(cb.series_index) == "number" then
         series_num = tostring(cb.series_index)
@@ -662,8 +669,15 @@ local function _buildLightMetaFromInfo(fp, info)
     if cb_series then
         series_name = cb_series
     elseif info.series then
-        series_name = info.series:gsub(" #%d+$", "")
-        series_num  = info.series:match(" #(%d+)$")
+        -- Guard empty / whitespace / name-less ("#3") embedded series: the
+        -- Calibre branch above already drops cb.series == "", so mirror it
+        -- here. Without this an empty series_name bucketed the book into a
+        -- junk single-book series stack even though KOReader's book info
+        -- shows the series as N/A (issue #127, non-Calibre libraries).
+        local sname = info.series:gsub(" #%d+$", "")
+        sname = sname:match("^%s*(.-)%s*$")  -- trim
+        if sname ~= "" then series_name = sname end
+        series_num = info.series:match(" #(%d+)$")
     end
     if cb and type(cb.series_index) == "number" then
         series_num = tostring(cb.series_index)
@@ -1041,6 +1055,7 @@ local _normalizeStatus
 local _statusForFp
 local _filterIsActive
 local _shapeHasFilteredBook
+local _shapeVisible
 local _applyFilter
 
 function Repo.invalidateWalkCache()
@@ -2656,6 +2671,11 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
+    -- Read at the top so both the cache HIT and MISS paths apply the same
+    -- single-book-stack rule (issue #127). Filtered at read time, not bake
+    -- time, so toggling the setting takes effect on the next render with no
+    -- cache invalidation.
+    local hide_single = BookshelfSettings.isTrue("hide_single_book_stacks")
 
     -- Cache fast path: filepaths + sort metadata are stable across renders;
     -- Books get rehydrated each read so cover_bbs are fresh. Sort runs at
@@ -2667,7 +2687,7 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
         local sk    = sort_priority_override or Repo.getSortPriority("series")
         local sorted = {}
         for _i, s in ipairs(cached.groups) do
-            if _shapeHasFilteredBook(s, filter) then
+            if _shapeVisible(s, filter, hide_single) then
                 sorted[#sorted + 1] = s
             end
         end
@@ -2779,7 +2799,7 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
     local sk = sort_priority_override or Repo.getSortPriority("series")
     local sorted = {}
     for _i, s in ipairs(shapes) do
-        if _shapeHasFilteredBook(s, filter) then sorted[#sorted + 1] = s end
+        if _shapeVisible(s, filter, hide_single) then sorted[#sorted + 1] = s end
     end
     table.sort(sorted, _groupShapeCmp(sk))
 
@@ -2835,6 +2855,20 @@ _shapeHasFilteredBook = function(shape, filter)
         if filter.statuses[s] then return true end
     end
     return false
+end
+
+-- _shapeVisible(shape, filter, hide_single): _shapeHasFilteredBook plus the
+-- optional "hide single-book stacks" rule (issue #127). A series or genre
+-- stack with a single book is usually noise -- a one-off poorly-tagged book,
+-- a title duplicated into the series field (the empty-series case is dropped
+-- upstream now), or an incomplete series. When the user opts in, drop it.
+-- Only the series + genre fetchers use this; authors / formats / languages
+-- keep the plain predicate, since a one-book group there is normal.
+_shapeVisible = function(shape, filter, hide_single)
+    if hide_single and shape.filepaths and #shape.filepaths <= 1 then
+        return false
+    end
+    return _shapeHasFilteredBook(shape, filter)
 end
 
 -- _applyFilter(meta_list, filter): returns a new list containing only
@@ -3337,9 +3371,12 @@ function Repo.getGenres(limit, offset, sort_priority_override, filter, opts)
     -- second. This was the cause of the genres-tab crash on first tap.
     local sk = sort_priority_override or Repo.getSortPriority("genres")
     local within = _withinPriority(sk)
+    -- Same single-book-stack rule as series (issue #127), applied here so a
+    -- genre with one poorly-tagged book can be hidden too.
+    local hide_single = BookshelfSettings.isTrue("hide_single_book_stacks")
     local sorted = {}
     for _i, s in ipairs(cached.groups) do
-        if _shapeHasFilteredBook(s, filter) then sorted[#sorted + 1] = s end
+        if _shapeVisible(s, filter, hide_single) then sorted[#sorted + 1] = s end
     end
     table.sort(sorted, _groupShapeCmp(sk))
     local total = #sorted

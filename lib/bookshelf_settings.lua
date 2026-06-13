@@ -2177,6 +2177,29 @@ function Settings:_advancedSubItems()
             end,
         },
         {
+            text = _("Hide single-book series and genres"),
+            help_text = _("When a series or genre contains only one book, hide"
+                .. " it from the Series and Genres tabs. Useful when a book"
+                .. " carries a one-off series name, or its own title as the"
+                .. " series. Off by default."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("hide_single_book_stacks")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local on = BookshelfSettings.isTrue("hide_single_book_stacks")
+                BookshelfSettings.save("hide_single_book_stacks", not on)
+                BookshelfSettings.flush()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        {
             text_func = function()
                 local ImageSource = require("lib/bookshelf_image_source")
                 local p = ImageSource.getImageLibraryPath()
