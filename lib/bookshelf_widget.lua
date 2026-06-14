@@ -1070,7 +1070,13 @@ function BookshelfWidget:_rebuild()
         local hsize = (BookshelfSettings.read("hero_size") == "large") and "large" or "regular"
         local hero_target = math.floor(available * (HERO_HEIGHT_FRAC[hsize] or 0.30))
         local lo = math.floor(slot_h_natural * SHELF_PACK_FLOOR)
-        local hi = math.floor(slot_h_natural * 1.05)   -- ShelfRow STRETCH_CAP
+        -- Cap shelf height at natural 2:3 (no vertical stretch). Spare
+        -- vertical slack flows to the hero instead of inflating the shelf
+        -- covers off-aspect -- the hero wins the leftover-space competition,
+        -- and every cover (hero + shelves) renders at a matching 2:3 ratio.
+        -- (Floor stays at SHELF_PACK_FLOOR=1.0: squashing below natural would
+        -- shrink covers horizontally too, reopening the PW5 side-gap problem.)
+        local hi = math.floor(slot_h_natural * 1.0)
         local raw = math.floor((available - hero_target) / n_shelves)
         shelf_h = math.max(1, math.min(hi, math.max(lo, raw)))
         hero_h  = math.max(hero_target, available - n_shelves * shelf_h)
