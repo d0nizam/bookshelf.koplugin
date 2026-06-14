@@ -5472,7 +5472,16 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
     elseif self._hero_dims and self._hero_dims.hero_h then
         below_y = (self._hero_dims.PAD or 0) + self._hero_dims.hero_h
     end
+    -- The hero cover's drop shadow fills the bottom SHADOW_OFFSET strip of the
+    -- card, so its lower edge lands exactly on below_y. A scoped "ui" refresh
+    -- whose hard top boundary sits flush against that soft-grey gradient leaves
+    -- a faint residual flash there on weak panels with HW dithering (the #124
+    -- tail). Nudge the band down past the shadow into the neutral PAD gap above
+    -- the chip strip -- still well clear of the chips, which must stay in the
+    -- refresh. SHADOW_OFFSET mirrors the value in bookshelf_spine_widget /
+    -- bookshelf_hero_card.
     if below_y then
+        below_y = below_y + Screen:scaleBySize(4)
         UIManager:setDirty(self, function()
             return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }
         end)
