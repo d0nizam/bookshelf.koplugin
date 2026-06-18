@@ -3076,9 +3076,15 @@ function Settings:_textSizeSubItems()
             end,
         }
     end
+    -- Prefix the two hero rows with their chip glyphs so they read as a pair and
+    -- map onto the on-screen chips: open-book (U+E7BD) = currently-reading hero,
+    -- view-grid (U+EC6F) = micro-module hero. Glyphs render via KOReader's
+    -- symbols-font fallback, same as the chips.
+    local HERO_BOOK = "\xEE\x9E\xBD  "
+    local HERO_GRID = "\xEE\xB1\xAF  "
     return {
-        row(_("Hero card"),             "font_scale",                100, "_pickFontScale"),
-        row(_("Hero micro-modules"),    "hero_module_font_scale",    100, "_pickHeroModuleFontScale"),
+        row(HERO_BOOK .. _("Hero card"),         "font_scale",             100, "_pickFontScale"),
+        row(HERO_GRID .. _("Hero micro-modules"),"hero_module_font_scale", 100, "_pickHeroModuleFontScale"),
         row(_("Chip bar"),              "chip_font_scale",           100, "_pickChipFontScale"),
         row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
         row(_("Expanded shelf labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
