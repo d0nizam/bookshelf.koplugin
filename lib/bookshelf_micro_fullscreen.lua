@@ -18,7 +18,6 @@ local CenterContainer = require("ui/widget/container/centercontainer")
 local Device          = require("device")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local Geom            = require("ui/geometry")
-local GestureRange    = require("ui/gesturerange")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local OverlapGroup    = require("ui/widget/overlapgroup")
 local Size            = require("ui/size")
@@ -122,14 +121,10 @@ function MicroFullscreen:_build()
     -- Track the built size so paintTo can re-layout on resize / rotation.
     self._built_w, self._built_h = sw, sh
     self.dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }
-    if Device:isTouchDevice() then
-        -- Whole-screen tap closes; the grid's own cell InputContainers consume
-        -- module/chevron taps first via propagation, so only taps on empty space
-        -- (or the close-X) fall through to here.
-        self.ges_events = {
-            TapClose = { GestureRange:new{ ges = "tap", range = self.dimen } },
-        }
-    end
+    -- Tap-to-close + system-gesture passthrough are both handled in
+    -- handleEvent (below), not via a whole-screen TapClose ges range: that
+    -- range would swallow the top-edge menu tap, edge brightness swipes and
+    -- corner gestures before they could reach FileManager.
     local margin = math.min(
         math.floor(Size.padding.fullscreen * 2 * 0.8),
         math.floor(sw * 0.03))
@@ -196,11 +191,95 @@ function MicroFullscreen:_build()
     }
     -- Read the CURRENT footer button dimen (refreshed when the bookshelf behind
     -- rebuilds on resize), falling back to the open-time value.
-    local close_glyph = _closeGlyph(self.bw,
-        (self.bw and self.bw._micromod_dimen) or self.button_dimen,
-        self._dpad, self._focus_close)
-    if close_glyph then children[#children + 1] = close_glyph end
+    local close_dimen = (self.bw and self.bw._micromod_dimen) or self.button_dimen
+    local close_glyph = _closeGlyph(self.bw, close_dimen, self._dpad, self._focus_close)
+    if close_glyph then
+        children[#children + 1] = close_glyph
+        -- Screen rect of the close target, so a tap there dismisses with priority
+        -- over any FM/gesture zone sharing that corner (see handleEvent).
+        self._close_rect = close_dimen and Geom:new{
+            x = close_dimen.x, y = close_dimen.y, w = close_dimen.w, h = close_dimen.h } or nil
+    else
+        self._close_rect = nil
+    end
     self[1] = children
+end
+
+-- Gesture handling. The overlay is the topmost widget, and UIManager:sendEvent
+-- only delivers to the topmost widget (it does NOT propagate unhandled events
+-- down the stack), so without this the KOReader-native system gestures would
+-- die here: the top-edge menu tap/swipe, edge brightness/warmth swipes and
+-- corner taps registered by FileManager + gestures.koplugin never fire.
+--
+-- Order: our own children (grid cells, the close button) first; then walk FM's
+-- native touch zones (same filtered walk as BookshelfWidget:handleEvent — FM's
+-- own filemanager_* zones + user-configured gestures.koplugin zones, skipping
+-- the file_chooser body); finally, an unhandled tap anywhere dismisses the
+-- overlay (the close-X is the cue, empty space closes too). Non-gesture events
+-- (keys, lifecycle) go straight to InputContainer.handleEvent.
+local function _tapInRect(ev, r)
+    if not (ev and ev.pos and r) then return false end
+    local p = ev.pos
+    return p.x >= r.x and p.x <= r.x + r.w and p.y >= r.y and p.y <= r.y + r.h
+end
+
+function MicroFullscreen:handleEvent(event)
+    if event.handler == "onGesture" then
+        -- Don't intercept while a gesture-unlock screensaver is up (mirrors the
+        -- bookshelf's guard so the wake gesture reaches the lock widget).
+        if Device.screen_saver_lock then return false end
+        if InputContainer.handleEvent(self, event) then return true end
+        local ev = event.args[1]
+
+        -- The close button takes priority over any FM/gesture zone at that
+        -- corner: tapping the X always dismisses (a corner zone was otherwise
+        -- swallowing the tap and the overlay stayed open).
+        if ev and ev.ges == "tap" and _tapInRect(ev, self._close_rect) then
+            return self:onTapClose()
+        end
+
+        -- KOReader-native gestures (top-edge menu tap/swipe, edge
+        -- brightness/warmth swipes, corner taps): same filtered FM touch-zone
+        -- walk as BookshelfWidget:handleEvent.
+        local fm = require("apps/filemanager/filemanager").instance
+        if fm and ev then
+            local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
+            local zone_lists = { fm._ordered_touch_zones }
+            for _i, child in ipairs(fm) do
+                if child ~= fm.file_chooser and type(child) == "table"
+                   and child._ordered_touch_zones then
+                    zone_lists[#zone_lists + 1] = child._ordered_touch_zones
+                end
+            end
+            for _i, zones in ipairs(zone_lists) do
+                for _j, tzone in ipairs(zones) do
+                    local id = tzone.def and tzone.def.id
+                    local allowed = id and (id:find("^filemanager_") or user_gestures[id])
+                    if allowed and tzone.gs_range:match(ev) and tzone.handler(ev) then
+                        return true
+                    end
+                end
+            end
+        end
+
+        -- Fallback: a tap on empty space dismisses the overlay.
+        if ev and ev.ges == "tap" then return self:onTapClose() end
+        return false
+    end
+
+    -- Non-gesture events. Our own key / lifecycle handlers run first.
+    if InputContainer.handleEvent(self, event) then return true end
+    -- A gesture zone fired above (brightness/warmth/night mode) emits its action
+    -- as a SEPARATE Dispatcher event via UIManager:sendEvent, which only reaches
+    -- the topmost widget (us). Forward it to FM so its DeviceListener acts on it
+    -- -- without this the swipe is recognised but nothing happens. Mirrors
+    -- BookshelfWidget:handleEvent's second forward, incl. its exclusions.
+    local NEVER_FORWARD = { onCloseWidget = true, onFlushSettings = true,
+                            onShow = true, onClose = true }
+    if NEVER_FORWARD[event.handler] then return end
+    if event._bookshelf_from_broadcast then return end
+    local fm = require("apps/filemanager/filemanager").instance
+    if fm then return fm:handleEvent(event) end
 end
 
 -- Re-layout on screen resize / rotation (desktop window resize), the same way
