@@ -6151,6 +6151,9 @@ function BookshelfWidget:paintTo(bb, x, y)
         local _diag_paint_t0 = _gettime()
         InputContainer.paintTo(self, bb, x, y)
         self:_clearHeroMarker()
+        if self._burger_dimen and self._burger_dimen.x then
+            require("lib/bookshelf_footer_geom").rememberButtonRect(self._burger_dimen)
+        end
         logger.dbg(string.format(
             "[bookshelf perf] paintTo: FIRST first_paint=%.0fms chip=%s",
             (_gettime() - _diag_paint_t0) * 1000, self.chip))
@@ -6158,6 +6161,11 @@ function BookshelfWidget:paintTo(bb, x, y)
     end
     InputContainer.paintTo(self, bb, x, y)
     self:_clearHeroMarker()
+    -- Remember the start-menu button's real painted rect so the in-reader
+    -- launcher can match it exactly (single Lua state; see bookshelf_footer_geom).
+    if self._burger_dimen and self._burger_dimen.x then
+        require("lib/bookshelf_footer_geom").rememberButtonRect(self._burger_dimen)
+    end
 end
 
 -- Clear the home-screen hero crash marker once the shelf has actually painted.
