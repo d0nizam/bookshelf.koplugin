@@ -247,6 +247,10 @@ function Bookshelf:init()
         UIManager:nextTick(function()
             self:_wireFastFileBrowserTab(true)
         end)
+        -- Persistent in-reader Bookshelf launcher (opt-in). Painted into
+        -- ReaderView so it survives page turns; a touch zone over it opens the
+        -- start menu.
+        self:_setupReaderButtons()
     end
 
     -- Register Dispatcher actions so users can bind gestures / keys to
@@ -969,6 +973,63 @@ end
 -- the rest based on whether Bookshelf is the live home.
 -- `force` re-installs the callback even when we've already wrapped this
 -- menu instance. Needed because another home-screen-replacement plugin can
+-- Persistent in-reader launcher button (opt-in via reader_launcher_button).
+-- Registers a ReaderView module that paints the hamburger into the reader frame
+-- (survives page turns, no e-ink ghosting -- the Bookends overlay mechanism),
+-- plus a touch zone over it that opens the start menu. Reader context only.
+function Bookshelf:_setupReaderButtons()
+    local Device = require("device")
+    if not (self.ui and self.ui.view and self.ui.document) then return end
+    if not Device:isTouchDevice() then return end
+    if not BookshelfSettings.read("reader_launcher_button", false) then return end
+    local ok, ReaderButtons = pcall(require, "lib/bookshelf_reader_buttons")
+    if not ok or not ReaderButtons then return end
+    local side = "left"
+    self._reader_buttons = ReaderButtons:new{ side = side }
+    self.ui.view:registerViewModule("bookshelf_launcher", self._reader_buttons)
+    local Screen = Device.screen
+    local g = ReaderButtons.geom(side)
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    -- Touch zone over the button rect (same geom as the paint). overrides take
+    -- it ahead of the page-turn / footer taps in that small corner only.
+    self.ui:registerTouchZones({
+        {
+            id = "bookshelf_launcher_tap",
+            ges = "tap",
+            screen_zone = {
+                ratio_x = g.x / sw, ratio_y = g.y / sh,
+                ratio_w = g.w / sw, ratio_h = g.h / sh,
+            },
+            handler = function(_ges)
+                logger.dbg("[bookshelf] reader launcher tapped")
+                self:_openReaderStartMenu()
+                return true
+            end,
+            -- Override every zone that could otherwise claim a bottom-corner tap
+            -- first (page turn, the page-body highlight tap, the footer/menu
+            -- taps). Only affects the small button rect; those zones work
+            -- normally everywhere else.
+            overrides = {
+                "tap_forward", "tap_backward",
+                "readerhighlight_tap", "readerhighlight_tap_select_mode",
+                "readerfooter_tap", "readermenu_tap",
+            },
+        },
+    })
+end
+
+-- Open the start menu from the reader. No bookshelf widget exists here, but
+-- StartMenu tolerates a nil bw (setDirty falls back to the menu itself, footer
+-- constants fall back to defaults); pcall'd so a context gap can't crash the
+-- reader. burger_dimen = the launcher rect, so the close-X lands on it.
+function Bookshelf:_openReaderStartMenu()
+    local ok, StartMenu = pcall(require, "lib/bookshelf_start_menu")
+    if not ok or not StartMenu then return end
+    local Screen = require("device").screen
+    local g = require("lib/bookshelf_reader_buttons").geom("left")
+    pcall(function() StartMenu.open(nil, Screen:scaleBySize(48), g) end)
+end
+
 -- re-wrap this same callback when the reader is shown — AFTER our init-time
 -- wrap — routing the File-browser tab to its own home view. Re-asserting on
 -- a post-show nextTick makes Bookshelf the deterministic last writer. See the

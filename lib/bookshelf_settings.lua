@@ -1419,6 +1419,22 @@ function Settings:_settingsSubItems()
                 end,
             }
         end)(),
+        -- In-reader launcher (opt-in, off by default): a small persistent button
+        -- in the reader's bottom corner that opens the start menu. Registered at
+        -- reader init, so it takes effect the next time a book is opened.
+        {
+            text = _("Show launcher button while reading"),
+            help_text = _("Adds a small Bookshelf button to the bottom corner of"
+                .. " the reader that opens the start menu. Takes effect the next"
+                .. " time you open a book."),
+            checked_func = function()
+                return BookshelfSettings.read("reader_launcher_button", false) == true
+            end,
+            callback = function()
+                local on = BookshelfSettings.read("reader_launcher_button", false) == true
+                BookshelfSettings.save("reader_launcher_button", not on)
+            end,
+        },
     }
     -- Hero-area-starts-with only matters when micro-modules exist; hidden when
     -- they're disabled (advanced setting). Two-state radio: "currently_reading"
