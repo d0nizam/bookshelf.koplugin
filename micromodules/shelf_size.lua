@@ -46,7 +46,8 @@ return {
     -- avail_h (4th arg) is accepted for signature parity with the hero grid;
     -- the status table's wrap decision is width-driven (below) so it adapts in
     -- both the start menu and the hero.
-    render = function(width, scale_pct, _preview, avail_h)
+    render = function(ctx)
+        local width, scale_pct, _preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
         local TextWidget      = require("ui/widget/textwidget")

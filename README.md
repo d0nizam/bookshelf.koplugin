@@ -159,7 +159,7 @@ Micro-modules are small live panels. Add them to the start menu through **Add ne
 - **Weather**, **On this day**, **Trivia**, **Daily fun** (jokes, facts and riddles) -- live content from the internet.
 - **Action** -- a launcher card that runs a plugin, a KOReader action, or a Bookshelf action, with your own icon and an optional label.
 
-Each module can carry its own settings (reached via **Module settings…** when you long-press it). Modules that need the internet show their data source in the picker rather than fetching while you browse. Modules are a small self-contained format: if you write a little Lua you can add your own by dropping a file into the plugin's `micromodules/` folder, and a bad one is skipped rather than breaking the menu. See `micromodules/README.md` for the contract.
+Each module can carry its own settings (reached via **Module settings…** when you long-press it). Modules that need the internet show their data source in the picker rather than fetching while you browse. Modules are a small self-contained format: if you write a little Lua you can add your own by dropping a file into the plugin's `micromodules/` folder, or into `koreader/settings/bookshelf/micromodules/` to have it survive plugin updates. A bad one is skipped rather than breaking the menu. See `micromodules/README.md` for the contract.
 
 ---
 

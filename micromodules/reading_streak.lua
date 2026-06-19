@@ -231,7 +231,8 @@ return {
     key   = "reading_streak",
     title = _("Reading streak"),
     summary = _("From KOReader statistics. Works offline."),
-    render = function(width, scale_pct, _preview, avail_h, _refresh, shape)
+    render = function(ctx)
+        local width, scale_pct, _preview, avail_h, _refresh, shape = ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.refresh, ctx.shape
         local Kit = require("lib/bookshelf_module_kit")
         local mw  = math.max(60, width)
 

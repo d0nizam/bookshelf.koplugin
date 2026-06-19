@@ -133,7 +133,7 @@ function HeroModules._ctx(bw, refresh, entry)
     local reload = refresh or function() HeroModules._rebuild(bw) end
     local shim = { bw = bw }
     function shim:_reload() reload() end
-    local ctx = { bw = bw, menu = shim, entry = entry }
+    local ctx = { bw = bw, menu = shim, entry = entry, surface = "hero" }
     -- Persist a per-instance change a module made to ctx.entry, then reload
     -- this cell (or rebuild the hero). No-op when the module has no entry or
     -- the entry vanished from the list.
@@ -192,7 +192,12 @@ local GROW_MAX_ITERS = 5
 -- Comfortable fill target: grow an under-filled card until it reaches ~90% of a
 -- cell dimension, leaving breathing room (not edge-to-edge).
 local FILL_TARGET    = 0.90
-local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult)
+-- Surface the current build renders for ("hero" | "fullscreen"), fed into each
+-- module's ctx. Set at HeroModules.build entry; safe as a module-level local
+-- because one build runs synchronously start to finish (no interleaving).
+local _build_surface = "hero"
+
+local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
     -- shrink to 60% (legibility floor; ClipContainer backstops anything worse),
@@ -205,7 +210,12 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     local shape = require("lib/bookshelf_module_kit").shape(inner_w, inner_h)
 
     local function renderAt(s)
-        local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh, shape, entry)
+        local ctx = {
+            width = inner_w, height = inner_h, scale = s, preview = false,
+            refresh = refresh, shape = shape, entry = entry,
+            surface = _build_surface, bw = bw, menu = nil,
+        }
+        local ok, widget = pcall(def.render, ctx)
         if not ok or not widget then return nil end
         local sz = widget.getSize and widget:getSize()
         return widget, (sz and sz.h) or 0, (sz and sz.w) or 0
@@ -376,7 +386,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         -- multiplier on the cell auto-fit, independent of the Hero card text size.
         local user_mult = BookshelfSettings.read("hero_module_font_scale", 100)
         local ok, c = Breaker.guard(function()
-            return _renderFitted(def, text_w, inner_h, scale_pct, refresh, entry, user_mult)
+            return _renderFitted(def, text_w, inner_h, scale_pct, refresh, entry, user_mult, bw)
         end)
         content = ok and c or nil
         errored = not ok
@@ -543,6 +553,7 @@ end
 -- Build the hero micro-module grid sized to content_w × hero_h.
 function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     opts = opts or {}
+    _build_surface = opts.surface or "hero"
     -- Arm the light-touch home-screen crash marker before building the grid
     -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
     -- file survives and the next launch comes up with the cover hero instead of

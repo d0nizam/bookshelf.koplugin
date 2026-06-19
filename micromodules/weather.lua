@@ -341,7 +341,8 @@ return {
     -- 5th arg `refresh`: the parent's scoped "re-render just this module's
     -- cell" callback. Stashed so the async implicit-fetch completion can nudge
     -- a scoped repaint via the parent instead of a full-screen setDirty.
-    render = function(width, scale_pct, _preview, _avail_h, refresh)
+    render = function(ctx)
+        local width, scale_pct, _preview, _avail_h, refresh = ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.refresh
         _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")

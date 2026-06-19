@@ -481,7 +481,12 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         -- layout/shaping error is caught here too. No disk writes on this path.
         -- The render still gets the scoped refresh (5th arg) for async redraws.
         local ok, widget = Breaker.guard(function()
-            local wgt = def.render(inner_w, self._scale_pct or 100, false, nil, refresh)
+            local wgt = def.render({
+                width = inner_w, height = nil,
+                scale = self._scale_pct or 100,
+                preview = false, refresh = refresh, shape = nil, entry = entry,
+                surface = "start_menu", bw = self.bw, menu = self,
+            })
             if wgt then wgt:getSize() end
             return wgt
         end)
@@ -1123,7 +1128,7 @@ function StartMenu:_activate(entry, tap_rect)
         -- on_tap receives a context table (modules that ignore the arg keep
         -- working): bw = the bookshelf widget, menu = this start menu.
         local menu = self
-        local ctx = { bw = self.bw, menu = self, entry = entry }
+        local ctx = { bw = self.bw, menu = self, entry = entry, surface = "start_menu" }
         -- Per-instance save: persist a change the module made to ctx.entry into
         -- the start-menu list, then reload. (Mirrors the hero ctx.save.)
         function ctx.save()
@@ -1157,7 +1162,15 @@ function StartMenu:_activate(entry, tap_rect)
             return
         end
         self:_close()
-        UIManager:nextTick(function() def.on_tap(ctx) end)
+        -- Contain a broken on_tap: the menu has already closed, so an unguarded
+        -- error here would surface as an unhandled nextTick crash.
+        UIManager:nextTick(function()
+            local ok, err = pcall(def.on_tap, ctx)
+            if not ok then
+                logger.warn("[bookshelf] start menu module tap failed:",
+                    entry.module, err)
+            end
+        end)
         return
     end
     local bw = self.bw

@@ -83,7 +83,8 @@ return {
     -- to fit it at a readable size (issue #183). The hero grid passes neither
     -- preview nor a clamp, so the quote keeps its natural height for the fit
     -- engine to shrink to the cell.
-    render = function(width, scale_pct, preview, avail_h)
+    render = function(ctx)
+        local width, scale_pct, preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")

@@ -199,7 +199,8 @@ function MicroFullscreen:_build()
     end
     local ok, grid = pcall(HeroModules.build, self.bw, content_w, grid_h, PAD,
         { items = items, focusable = self._dpad or nil,
-          focused_id = (not self._focus_close) and self._cursor_id or nil })
+          focused_id = (not self._focus_close) and self._cursor_id or nil,
+          surface = "fullscreen" })
     if not ok or not grid then
         grid = Widget:new{}  -- defensive: empty, still closeable
     end
