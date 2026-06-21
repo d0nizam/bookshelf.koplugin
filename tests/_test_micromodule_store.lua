@@ -36,27 +36,47 @@ _G.G_reader_settings = { readSetting = function() return nil end,
 local MAIN = "/x/bookshelf.lua"
 local MM   = "/x/bookshelf_micromodules.lua"
 
+local HC = "/x/bookshelf_hardcover_links.lua"
+
 -- Seed: legacy migration already done (skip it), relocation NOT yet done, with
--- one micromodule_* key and one ordinary key already in the main file.
+-- a micromodule_* key, the big hardcover_links cache, and an ordinary key all in
+-- the main file.
 fileData(MAIN).migrated            = true
 fileData(MAIN).micromodule_foo_bar = "hello"
+fileData(MAIN).hardcover_links     = { ["/b.epub"] = { edition = 42 } }
 fileData(MAIN).active_chip         = "recent"
 
 local Store = dofile("lib/bookshelf_settings_store.lua")
 local t = dofile("tests/_helpers.lua").runner()
 
-t.test("first access relocates pre-existing micromodule_* keys to the MM file", function()
+t.test("first access relocates routed keys to their own files", function()
     -- Reading any key opens the store and runs the one-shot relocation.
     local v = Store.read("micromodule_foo_bar")
     assert(v == "hello", "routed read must return the relocated value")
     assert(fileData(MM).micromodule_foo_bar == "hello",
-        "the key must now live in the MM file")
+        "micromodule key must now live in the MM file")
     assert(fileData(MAIN).micromodule_foo_bar == nil,
-        "the key must be gone from the main file")
-    assert(fileData(MAIN).micromodules_relocated == true,
+        "micromodule key must be gone from the main file")
+    -- hardcover_links (precious cache) relocated to its own file, intact.
+    assert(fileData(HC).hardcover_links ~= nil
+        and fileData(HC).hardcover_links["/b.epub"].edition == 42,
+        "hardcover_links must be relocated to the HC file, intact")
+    assert(fileData(MAIN).hardcover_links == nil,
+        "hardcover_links must be gone from the main file")
+    assert(fileData(MAIN).aux_data_relocated_v2 == true,
         "relocation must set its one-shot flag")
     assert(fileData(MAIN).active_chip == "recent",
         "ordinary keys must be untouched by relocation")
+end)
+
+t.test("hardcover_links reads/writes route to the HC file, not the main file", function()
+    Store.save("hardcover_links", { ["/c.epub"] = { edition = 7 } })
+    assert(fileData(HC).hardcover_links["/c.epub"].edition == 7,
+        "hardcover_links write must land in the HC file")
+    assert(fileData(MAIN).hardcover_links == nil,
+        "hardcover_links write must NOT touch the main file")
+    assert(Store.read("hardcover_links")["/c.epub"].edition == 7,
+        "routed read returns the HC-file value")
 end)
 
 t.test("micromodule_* writes go to the MM file, not the main file", function()
