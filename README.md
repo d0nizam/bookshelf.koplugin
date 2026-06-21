@@ -145,6 +145,8 @@ Each item can be:
 
 **While reading.** Turn on **Bookshelf settings -> Show launcher button while reading** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. If you use full-screen [micro-modules](#micro-modules-on-the-home-screen), the grid button appears in the reader too. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
 
+**By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench -> Taps and gestures -> Gesture manager) lists two assignable actions, **Bookshelf: open start menu** and **Bookshelf: open micro-modules**. Bind either to any gesture -- a corner tap, a swipe, a multiswipe -- and it opens that view in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, it works even if the start menu or micro-modules are set to **Off**.
+
 ### Micro-modules
 
 Micro-modules are small live panels. Add them to the start menu through **Add new menu item -> Bookshelf micro-module…**, or to the [home-screen grid](#micro-modules-on-the-home-screen). The ones that ship with Bookshelf:
@@ -156,6 +158,7 @@ Micro-modules are small live panels. Add them to the start menu through **Add ne
 - **Reading streak** -- your current and best reading streak, in days and weeks (needs the `statistics` plugin).
 - **Random book** -- rolls an unread book from the current shelf (or your whole library) into the hero card; tap the dice for another.
 - **Shelf count** -- how many books are on the current shelf.
+- **Countdown** -- "N days until <your label>" for a date you pick; counts up ("N days since…") once the date has passed. Add it more than once for several dates, each with its own label.
 - **Weather**, **On this day**, **Trivia**, **Daily fun** (jokes, facts and riddles) -- live content from the internet.
 - **Action** -- a launcher card that runs a plugin, a KOReader action, or a Bookshelf action, with your own icon and an optional label.
 
