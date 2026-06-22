@@ -143,6 +143,15 @@ end
 
 local function scan()
     if scanned then return end
+    -- Kill switch: when every micro-module surface (start menu / hero /
+    -- full-screen) is off, skip discovery entirely so no module file is even
+    -- dofile'd. Re-attempts when a surface is turned back on (scanned stays
+    -- false). pcall + explicit `== false` so the standalone test runner (no
+    -- settings store) and any read error fall through to scanning, never block.
+    local ok_any, any = pcall(function()
+        return require("lib/bookshelf_settings_store").microAnyEnabled()
+    end)
+    if ok_any and any == false then return end
     scanned = true
     -- User dir FIRST so a user module overrides a bundled one of the same key
     -- (first-registered wins), and survives plugin updates; then the bundled

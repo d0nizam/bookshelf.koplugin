@@ -139,11 +139,15 @@ function HeroModules._ctx(bw, refresh, entry)
     -- the entry vanished from the list.
     function ctx.save()
         if not entry then return end
-        local HeroModel = require("lib/bookshelf_hero_modules_model")
-        local items = HeroModel.load()
-        local list, i = HeroModel.findById(items, entry.id)
+        -- Save to the surface that owns this cell: the full-screen overlay edits
+        -- its own list (bw._micro_fullscreen set), else the hero list.
+        local Model = (bw and bw._micro_fullscreen)
+            and require("lib/bookshelf_fullscreen_modules_model")
+            or require("lib/bookshelf_hero_modules_model")
+        local items = Model.load()
+        local list, i = Model.findById(items, entry.id)
         if list and i then list[i] = entry end
-        HeroModel.save(items)
+        Model.save(items)
         reload()
     end
     ctx.config = require("lib/bookshelf_module_kit").entryConfig(entry, ctx.save)
