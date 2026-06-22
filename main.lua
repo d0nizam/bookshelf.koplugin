@@ -1069,6 +1069,33 @@ function Bookshelf:_setupReaderButtons()
     self.ui:registerTouchZones(zones)
 end
 
+-- Re-align the reader launcher after a screen-geometry change (device rotation
+-- or a desktop window resize -- issue #196). The painted glyph self-heals (the
+-- view module repaints from the current screen size, and footer_geom drops a
+-- remembered rect captured at a different geometry), but the touch zones were
+-- registered from the old-geometry anchor, so re-register them. Coalesced onto
+-- one nextTick: a desktop resize-drag fires many events, and deferring lets the
+-- Screen dimensions settle before we recompute. _setupReaderButtons self-guards
+-- to the reader+touch context, so this is a no-op elsewhere.
+function Bookshelf:_scheduleReaderButtonResetup()
+    if self._reader_resetup_pending then return end
+    self._reader_resetup_pending = true
+    UIManager:nextTick(function()
+        self._reader_resetup_pending = false
+        self:_setupReaderButtons()
+    end)
+end
+
+-- NOTE: these must NOT return true -- the events also drive ReaderView's own
+-- rotation/resize handling, so we observe and let them propagate.
+function Bookshelf:onSetRotationMode()
+    self:_scheduleReaderButtonResetup()
+end
+
+function Bookshelf:onScreenResize()
+    self:_scheduleReaderButtonResetup()
+end
+
 -- Open the full-screen micro-module overlay from the reader (v1). No bookshelf
 -- widget exists here, so a minimal context shim stands in for `bw`: enough for
 -- the overlay to render + navigate the grid, position its close-X / hamburger,
