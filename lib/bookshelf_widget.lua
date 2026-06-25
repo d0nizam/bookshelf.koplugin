@@ -10696,24 +10696,50 @@ function BookshelfWidget:_applyWithinGroupSort(group)
     -- a series stack. Hydrate just the fields this sort needs, via the cached
     -- Repo.readProgress (.sdr fast-path: unread books cost nothing).
     local w_progress, w_rating, w_pages = false, false, false
+    local w_opened, w_added = false, false
     for _i, lv in ipairs(within) do
         local k = lv.key
         if k == "percent_read" or k == "read_status"
                 or k == "read_status_active" then w_progress = true end
-        if k == "rating"     then w_rating = true end
-        if k == "page_count" then w_pages  = true end
+        if k == "rating"      then w_rating = true end
+        if k == "page_count"  then w_pages  = true end
+        if k == "last_opened" then w_opened = true end
+        if k == "date_added"  then w_added  = true end
     end
-    if w_progress or w_rating or w_pages then
+    if w_progress or w_rating or w_pages or w_added then
         local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
         local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
         for _i, m in ipairs(group.books_meta) do
-            if m.filepath then
-                local sdr = m.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                if lfs_attr and lfs_attr(sdr, "mode") == "directory" then
-                    local pct, status, rating, page_count = Repo.readProgress(m.filepath)
-                    if w_progress then m._pct = pct; m._status = status end
-                    if w_rating and m.rating == nil then m.rating = rating end
-                    if w_pages  and m.page_count == nil then m.page_count = page_count end
+            if m.filepath and lfs_attr then
+                -- date_added is the book file's own mtime (same source getAll's
+                -- prefetch uses), independent of any sidecar.
+                if w_added and m.date_added == nil then
+                    m.date_added = lfs_attr(m.filepath, "modification") or 0
+                end
+                if w_progress or w_rating or w_pages then
+                    local sdr = m.filepath:gsub("%.[^.]+$", "") .. ".sdr"
+                    if lfs_attr(sdr, "mode") == "directory" then
+                        local pct, status, rating, page_count = Repo.readProgress(m.filepath)
+                        if w_progress then m._pct = pct; m._status = status end
+                        if w_rating and m.rating == nil then m.rating = rating end
+                        if w_pages  and m.page_count == nil then m.page_count = page_count end
+                    end
+                end
+            end
+        end
+    end
+    -- last_opened isn't in the light BIM meta (buildBookMeta omits it), so a
+    -- within-stack sort by "Opened" would compare all-nil and silently no-op,
+    -- leaving a drilled collection in its default order (#205). Populate it from
+    -- KOReader's ReadHistory, the same source getAll's prefetch uses.
+    if w_opened then
+        local ok_rh, ReadHistory = pcall(require, "readhistory")
+        if ok_rh and ReadHistory and ReadHistory.hist then
+            local rh = {}
+            for _i, item in ipairs(ReadHistory.hist) do rh[item.file] = item.time end
+            for _i, m in ipairs(group.books_meta) do
+                if m.filepath and m.last_opened == nil and m._last_read == nil then
+                    m._last_read = rh[m.filepath] or 0
                 end
             end
         end
