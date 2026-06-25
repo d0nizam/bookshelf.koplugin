@@ -180,6 +180,7 @@ local ChipBar = InputContainer:extend{
     on_change         = nil,   -- function(key) — chips mode tap
     on_breadcrumb     = nil,   -- function(depth) — breadcrumb mode tap
     on_hold           = nil,   -- function(key) — chips mode long-press
+    on_page_change    = nil,   -- function() — chip page changed (for pre-warm)
     show_parent       = nil,   -- window-level widget, used as setDirty target
 }
 
@@ -781,6 +782,33 @@ function ChipBar:_gotoPage(p)
             return "ui", self.dimen
         end)
     end
+    -- Let the host pre-warm the chips this page (and the next) just revealed.
+    if self.on_page_change then self.on_page_change() end
+end
+
+-- warmKeys(): nav (flex) chip keys worth pre-warming from where we are now --
+-- the current page plus the next one (forward-swipe bias). Single-page bars
+-- return every nav chip (same set the old all-chips warm used). Action chips
+-- and chevrons are excluded (no shelf to build). Used by the host's page-bounded
+-- pre-warm so warm cost is O(page), not O(total chips).
+function ChipBar:warmKeys()
+    if not self._pages or not self._flex_indices then return {} end
+    local out, seen = {}, {}
+    local function addPage(p)
+        local range = self._pages.pages[p]
+        if not range then return end
+        for j = range.first, range.last do
+            local idx  = self._flex_indices[j]
+            local chip = idx and self.chips[idx]
+            if chip and chip.key and not seen[chip.key] then
+                seen[chip.key] = true
+                out[#out + 1] = chip.key
+            end
+        end
+    end
+    addPage(self._page or 1)
+    addPage((self._page or 1) + 1)
+    return out
 end
 
 -- ─── Breadcrumb mode ────────────────────────────────────────────────────────

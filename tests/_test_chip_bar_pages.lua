@@ -119,5 +119,27 @@ test("swipe west pages forward, east pages back, clamped", function()
     assert(b._page == 1, "clamped at page 1")
 end)
 
+test("warmKeys: single page returns all nav chips, excludes action chips", function()
+    local b = bar({ "Home", "Recent" }, 2000)
+    local set = {}; for _i, k in ipairs(b:warmKeys()) do set[k] = true end
+    assert(set["Home"] and set["Recent"], "both nav chips warmable")
+    assert(not set["current"] and not set["search"], "action chips never warmed")
+end)
+
+test("warmKeys: paginated returns current + next page only (page-bounded)", function()
+    local b = bar({ "AUTHORS", "COLLECTIONS", "SCIENCE FICTION", "FAVOURITES", "HISTORY", "BIOGRAPHIES" }, 360)
+    local function navKey(flexpos) return b.chips[b._flex_indices[flexpos]].key end
+    local set = {}; for _i, k in ipairs(b:warmKeys()) do set[k] = true end
+    assert(set[navKey(b._pages.pages[1].first)], "page-1 chip is warmable")
+    if b._pages.num_pages >= 3 then
+        assert(set[navKey(b._pages.pages[2].first)], "page-2 chip warmable (next-page bias)")
+        assert(not set[navKey(b._pages.pages[3].first)], "page-3 chip NOT warmed from page 1")
+    end
+    -- After paging to the last page, its chips are warmable and there's no next.
+    b:_gotoPage(b._pages.num_pages)
+    local set2 = {}; for _i, k in ipairs(b:warmKeys()) do set2[k] = true end
+    assert(set2[navKey(b._pages.pages[b._pages.num_pages].first)], "last-page chip warmable when on it")
+end)
+
 print(string.format("%d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)
